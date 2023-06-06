@@ -62,13 +62,13 @@ TEST = SamplingScheme(temperature=0.5, top_k=None, top_p=0.5)
 from langchain.llms import BaseLLM
 from langchain.prompts import FewShotPromptTemplate, PromptTemplate
 from langchain.output_parsers import PydanticOutputParser
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 COT_EXAMPLE = dict[str, str]
 
 cot_prompt_template = PromptTemplate(
     input_variables=['query', 'steps', 'answer'],
-    template="Query: {query}\n{steps}. The answer is {answer}."
+    template="Query: {query}\nAnswer: {steps}. The answer is {answer}."
 )
 
 
@@ -105,8 +105,8 @@ def create_cot_prompt_template(
     if len(cot_examples) <= 0: raise ValueError("There must be at least 1 cot_example.")
 
     for ex in cot_examples:
-        if not {"query", "reason", "answer"} == set(ex.keys()):
-            raise ValueError(f"Missing keys (query, reason, answer) in example: {ex}")
+        if not {"query", "steps", "answer"} == set(ex.keys()):
+            raise ValueError(f"Missing keys (query, steps, answer) in example: {ex}")
 
     return FewShotPromptTemplate(
         prefix=instructions,
@@ -145,8 +145,10 @@ class CoTSC(object):
         self.n_completions = n_completions
 
         # output defs
-        self.parser = PydanticOutputParser(pydantic_object=ClassificationOutput())  # note: hard coded output definition
-        prompt.suffix = "{format_instructions}\n" + prompt.suffix
+        parser = PydanticOutputParser(pydantic_object=ClassificationOutput)  # note: hard coded output definition
+        prompt.suffix = "\n\n{format_instructions}\n\n" + prompt.suffix
+        prompt.partial_variables = {'format_instructions': parser.get_format_instructions()}
+        self.parser = parser
 
     def run(self, query: str) -> VOTES:
         # use the few shot prompt as input to the llm.
@@ -170,7 +172,7 @@ class CoTSC(object):
             votes_ans['votes'] = votes_ans.get('votes') + 1
             votes_ans['reasons'].add(p.reason)
             votes[p.answer] = votes_ans
-        return sorted(votes, key=lambda kv: kv[1].get('votes'), reverse=True)
+        return sorted(votes.items(), key=lambda kv: kv[1].get('votes'), reverse=True)
 
     print("## Chain of Thought - Self Consistency.")
     from cot import cot_template, std_template, query
