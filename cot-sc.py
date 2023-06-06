@@ -57,24 +57,120 @@ class SamplingScheme(object):
 UL2_20B_LaMDA_137B = SamplingScheme(temperature=0.5, top_k=40, top_p=1)
 PaLM_540B = SamplingScheme(temperature=0.7, top_k=40, top_p=1)
 GPT3 = SamplingScheme(temperature=0.7, top_k=40, top_p=1)
+TEST = SamplingScheme(temperature=0.5, top_k=None, top_p=0.5)
 
-TEST = SamplingScheme(temperature=0.5, top_k=None, top_p=1)
+from langchain.llms import BaseLLM
+from langchain.prompts import FewShotPromptTemplate, PromptTemplate
+from langchain.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field, validator
 
-if __name__ == '__main__':
-    # 1. model.generate n completions.
-    # 2. take majority vote.
+COT_EXAMPLE = dict[str, str]
 
-    model = OpenAI(
-        # model_name='text-davinci-003',
-        # model_name='text-davinci-002',
-        model_name='text-curie-001',
-        # model_name='text-babbage-001',
-        # model_name='text-ada-001',
-        n=(num_completions := 3),
-        max_tokens=256,  # default. may be set to 1 for classification.
-        **TEST.openai(),
+cot_prompt_template = PromptTemplate(
+    input_variables=['query', 'steps', 'answer'],
+    template="Query: {query}\n{steps}. The answer is {answer}."
+)
+
+
+def create_cot_prompt_example(
+        query: str,
+        steps: str,
+        answer: str,
+) -> COT_EXAMPLE:
+    return {
+        'query': query,
+        'steps': steps,
+        'answer': answer,
+    }
+
+
+class ClassificationOutput(BaseModel):
+    answer: str = Field(description="the classification")
+    reason: str = Field(description="the reason for the classification")
+
+
+def create_cot_prompt_template(
+        instructions: Optional[str],
+        cot_examples: list[COT_EXAMPLE],
+        output_definition: Optional[BaseModel],
+) -> FewShotPromptTemplate:
+    """ Create a prompt template following Chain of Thoughts. """
+    if not isinstance(instructions, str) and instructions is not None:
+        raise TypeError("instructions must be a string.")
+    if isinstance(instructions, str) and not instructions.strip().endswith("\n"):
+        instructions += "\n"
+    instructions = instructions.strip()
+
+    if not isinstance(cot_examples, list): raise TypeError("cot_examples must be a list.")
+    if len(cot_examples) <= 0: raise ValueError("There must be at least 1 cot_example.")
+
+    for ex in cot_examples:
+        if not {"query", "reason", "answer"} == set(ex.keys()):
+            raise ValueError(f"Missing keys (query, reason, answer) in example: {ex}")
+
+    return FewShotPromptTemplate(
+        prefix=instructions,
+        example_prompt=cot_prompt_template,
+        examples=cot_examples,
+        suffix="Query: {query}",
+        input_variables=['query'],
+        example_separator='\n',
     )
-    print(model)
+
+
+VOTES = list
+
+
+class CoTSC(object):
+    MODELS = ('text-davinci-003', 'text-davinci-002', 'text-curie-001', 'text-babbage-001', 'text-ada-001')
+
+    def __init__(self,
+                 model: str,
+                 prompt: FewShotPromptTemplate,
+                 sampling_scheme: SamplingScheme,
+                 ):
+        if not isinstance(model, str): raise TypeError(f"model must be a string. {', '.join(CoTSC.MODELS)}")
+        if model not in CoTSC.MODELS: raise ValueError(f"model must be one of {', '.join(CoTSC.MODELS)}")
+        if not isinstance(prompt, FewShotPromptTemplate): raise TypeError("prompt must be a FewShotPrompt for CoT.")
+        if not prompt.suffix: raise ValueError("prompt must have a suffix for CoT.")
+
+        self.model = model
+        self.prompt = prompt
+
+        self.llm = OpenAI(
+            model_name=model,
+            n=(n_completions := 3),
+            **sampling_scheme.openai(),
+        )
+        self.n_completions = n_completions
+
+        # output defs
+        self.parser = PydanticOutputParser(pydantic_object=ClassificationOutput())  # note: hard coded output definition
+        prompt.suffix = "{format_instructions}\n" + prompt.suffix
+
+    def run(self, query: str) -> VOTES:
+        # use the few shot prompt as input to the llm.
+        # generate X number of outputs.
+        # parse the output for answer.
+        prompt = self.prompt.format(query=query)
+        prompts = list(map(prompt_check, [prompt]))
+        output = self.llm.generate(prompts)
+        if not len(output.generations) == 1: raise RuntimeError("1 prompt is provided, expecting 1 output generation")
+        completions = output.generations[0]
+        if not len(completions) == self.n_completions:
+            raise RuntimeError(f"Expecting {self.n_completions}. Got {len(completions)}")
+
+        return self._majority_vote([self.parser.parse(c.text) for c in completions])
+
+    @staticmethod
+    def _majority_vote(parsed: list[ClassificationOutput]) -> VOTES:
+        votes = dict()
+        for p in parsed:
+            votes_ans = votes.get(p.answer, {'votes': 0, 'reasons': set()})
+            votes_ans['votes'] = votes_ans.get('votes') + 1
+            votes_ans['reasons'].add(p.reason)
+            votes[p.answer] = votes_ans
+        return sorted(votes, key=lambda kv: kv[1].get('votes'), reverse=True)
 
     print("## Chain of Thought - Self Consistency.")
     from cot import cot_template, std_template, query
