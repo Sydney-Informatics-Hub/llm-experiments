@@ -25,11 +25,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union
-from collections import Counter
 
 from langchain.schema import Generation, OutputParserException
 from langchain.llms import OpenAI
-from langchain.callbacks import get_openai_callback
 from prompt_check import prompt_check
 
 
