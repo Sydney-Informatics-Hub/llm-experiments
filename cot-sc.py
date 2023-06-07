@@ -23,9 +23,11 @@ Sampling Strategies:
 import re
 import sys
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
 from collections import Counter
 
+from langchain.schema import Generation, OutputParserException
 from langchain.llms import OpenAI
 from langchain.callbacks import get_openai_callback
 from prompt_check import prompt_check
@@ -59,7 +61,6 @@ PaLM_540B = SamplingScheme(temperature=0.7, top_k=40, top_p=1)
 GPT3 = SamplingScheme(temperature=0.7, top_k=40, top_p=1)
 TEST = SamplingScheme(temperature=0.5, top_k=None, top_p=0.5)
 
-from langchain.llms import BaseLLM
 from langchain.prompts import FewShotPromptTemplate, PromptTemplate
 from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
@@ -84,15 +85,9 @@ def create_cot_prompt_example(
     }
 
 
-class ClassificationOutput(BaseModel):
-    answer: str = Field(description="the classification")
-    reason: str = Field(description="the reason for the classification")
-
-
 def create_cot_prompt_template(
         instructions: Optional[str],
         cot_examples: list[COT_EXAMPLE],
-        output_definition: Optional[BaseModel],
 ) -> FewShotPromptTemplate:
     """ Create a prompt template following Chain of Thoughts. """
     if not isinstance(instructions, str) and instructions is not None:
@@ -121,6 +116,11 @@ def create_cot_prompt_template(
 VOTES = list
 
 
+class ClassificationOutput(BaseModel):
+    answer: str = Field(description="the classification")
+    steps: str = Field(description="the reasoning steps that resulted in the classification")
+
+
 class CoTSC(object):
     MODELS = ('text-davinci-003', 'text-davinci-002', 'text-curie-001', 'text-babbage-001', 'text-ada-001')
 
@@ -128,26 +128,29 @@ class CoTSC(object):
                  model: str,
                  prompt: FewShotPromptTemplate,
                  sampling_scheme: SamplingScheme,
+                 n_completions: int,
                  ):
         if not isinstance(model, str): raise TypeError(f"model must be a string. {', '.join(CoTSC.MODELS)}")
         if model not in CoTSC.MODELS: raise ValueError(f"model must be one of {', '.join(CoTSC.MODELS)}")
         if not isinstance(prompt, FewShotPromptTemplate): raise TypeError("prompt must be a FewShotPrompt for CoT.")
         if not prompt.suffix: raise ValueError("prompt must have a suffix for CoT.")
-
-        self.model = model
-        self.prompt = prompt
+        if not isinstance(n_completions, int): raise TypeError("n_completions must be an integer.")
+        if not n_completions > 0: raise ValueError("n_completions must be > 0.")
+        if n_completions > 10: print(f"Warning: {n_completions=}. This may incur significant costs.", file=sys.stderr)
 
         self.llm = OpenAI(
             model_name=model,
-            n=(n_completions := 3),
+            n=n_completions,
             **sampling_scheme.openai(),
         )
+        self.model = model
         self.n_completions = n_completions
 
         # output defs
         parser = PydanticOutputParser(pydantic_object=ClassificationOutput)  # note: hard coded output definition
         prompt.suffix = "\n\n{format_instructions}\n\n" + prompt.suffix
         prompt.partial_variables = {'format_instructions': parser.get_format_instructions()}
+        self.prompt = prompt
         self.parser = parser
 
     def run(self, query: str) -> VOTES:
@@ -168,25 +171,51 @@ class CoTSC(object):
     def _majority_vote(parsed: list[ClassificationOutput]) -> VOTES:
         votes = dict()
         for p in parsed:
-            votes_ans = votes.get(p.answer, {'votes': 0, 'reasons': set()})
+            votes_ans = votes.get(p.answer, {'votes': 0, 'steps': set()})
             votes_ans['votes'] = votes_ans.get('votes') + 1
-            votes_ans['reasons'].add(p.reason)
+            votes_ans['steps'].add(p.steps)
             votes[p.answer] = votes_ans
         return sorted(votes.items(), key=lambda kv: kv[1].get('votes'), reverse=True)
 
     print("## Chain of Thought - Self Consistency.")
     from cot import cot_template, std_template, query
 
-    prompts = [cot_template.format(query=query)]
-    prompts = list(map(prompt_check, prompts))
-    results = model.generate(prompts)
+    @classmethod
+    def from_toml(cls,
+                  model: str,
+                  prompt_toml: Union[str, Path],
+                  sampling_scheme: SamplingScheme,
+                  n_completions: int):
+        prompt_toml = Path(prompt_toml)
+        if not prompt_toml.suffix == '.toml': raise ValueError("prompt_toml is not a toml file.")
+        import toml
+        data = toml.load(prompt_toml)
+        classes = list(data.keys())
 
-    answer_pattern = re.compile(r'[0-9]+')
-    prompt_answers = []
-    for prompt, generations in zip(prompts, results.generations):
-        answers = []
-        for generation in generations:
-            print("-" * 100)
+        instructions = []
+        cot_examples = []
+        for clz in classes:
+            for example in data.get(clz).get('examples'):
+                cot_ex = create_cot_prompt_example(
+                    query=example.get('query'),
+                    steps=example.get('steps'),
+                    answer=clz
+                )
+                cot_examples.append(cot_ex)
+
+            instruction = data.get(clz).get('instruction')
+            instruction = f"{clz}: {instruction}"
+            instructions.append(instruction)
+
+        instruction = f"""The following are {len(classes)} classes with a description of each. 
+    Please classify each 'query' as one of the {len(classes)} classes.\n""" + '\n'.join(instructions) + "\n\n"
+
+        template = create_cot_prompt_template(
+            instructions=instruction,
+            cot_examples=cot_examples,
+        )
+        return cls(model=model, prompt=template, sampling_scheme=sampling_scheme, n_completions=n_completions)
+
             print(f"Prompt: \n{prompt}")
             print(f"Output: \n{generation.text}")
             answer = answer_pattern.findall(generation.text)[-1]
