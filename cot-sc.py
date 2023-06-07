@@ -127,6 +127,7 @@ class CoTSC(object):
     def __init__(self,
                  model: str,
                  prompt: FewShotPromptTemplate,
+                 classes: list[str],
                  sampling_scheme: SamplingScheme,
                  n_completions: int,
                  ):
@@ -134,6 +135,9 @@ class CoTSC(object):
         if model not in CoTSC.MODELS: raise ValueError(f"model must be one of {', '.join(CoTSC.MODELS)}")
         if not isinstance(prompt, FewShotPromptTemplate): raise TypeError("prompt must be a FewShotPrompt for CoT.")
         if not prompt.suffix: raise ValueError("prompt must have a suffix for CoT.")
+        if not isinstance(classes, list): raise TypeError("classes must be a list of strings.")
+        if len(classes) <= 0: raise ValueError("There must be at least one class.")
+        if not isinstance(classes[0], str): raise TypeError("classes must be a list of strings.")
         if not isinstance(n_completions, int): raise TypeError("n_completions must be an integer.")
         if not n_completions > 0: raise ValueError("n_completions must be > 0.")
         if n_completions > 10: print(f"Warning: {n_completions=}. This may incur significant costs.", file=sys.stderr)
@@ -144,6 +148,7 @@ class CoTSC(object):
             **sampling_scheme.openai(),
         )
         self.model = model
+        self.classes = classes
         self.n_completions = n_completions
 
         # output defs
@@ -165,10 +170,11 @@ class CoTSC(object):
         if not len(completions) == self.n_completions:
             raise RuntimeError(f"Expecting {self.n_completions}. Got {len(completions)}")
 
-        return self._majority_vote([self.parser.parse(c.text) for c in completions])
+        return self._majority_vote([self.fallback_parse(c) for c in completions])
 
     @staticmethod
     def _majority_vote(parsed: list[ClassificationOutput]) -> VOTES:
+        """ Classification output """
         votes = dict()
         for p in parsed:
             votes_ans = votes.get(p.answer, {'votes': 0, 'steps': set()})
@@ -177,8 +183,23 @@ class CoTSC(object):
             votes[p.answer] = votes_ans
         return sorted(votes.items(), key=lambda kv: kv[1].get('votes'), reverse=True)
 
-    print("## Chain of Thought - Self Consistency.")
-    from cot import cot_template, std_template, query
+    def fallback_parse(self, completion: Generation) -> ClassificationOutput:
+        """ Parses the output using the parser first. Fallback to regex. Then N/A. """
+        try:
+            parsed = self.parser.parse(completion.text)
+            return parsed
+        except OutputParserException as ope:
+            ans_ptn = re.compile("(" + "|".join(self.classes) + ")", flags=re.IGNORECASE)
+            answers = ans_ptn.findall(completion.text)
+            ans = ', '.join(answers)
+            steps: str = ans_ptn.sub('', completion.text)
+            steps = re.sub('answer[:]?', '', steps, flags=re.IGNORECASE)
+            steps = steps.strip()
+            # todo: log
+            return ClassificationOutput(answer=ans, steps=steps)
+        except Exception as e:
+            # todo: log
+            return ClassificationOutput(answer='N/A', steps='N/A')
 
     @classmethod
     def from_toml(cls,
@@ -195,7 +216,7 @@ class CoTSC(object):
         instructions = []
         cot_examples = []
         for clz in classes:
-            for example in data.get(clz).get('examples'):
+            for example in data.get(clz).get('examples', list()):
                 cot_ex = create_cot_prompt_example(
                     query=example.get('query'),
                     steps=example.get('steps'),
@@ -214,9 +235,13 @@ class CoTSC(object):
             instructions=instruction,
             cot_examples=cot_examples,
         )
-        return cls(model=model, prompt=template, sampling_scheme=sampling_scheme, n_completions=n_completions)
+        return cls(model=model,
+                   prompt=template,
+                   classes=classes,
+                   sampling_scheme=sampling_scheme,
+                   n_completions=n_completions)
 
-            print(f"Prompt: \n{prompt}")
+
             print(f"Output: \n{generation.text}")
             answer = answer_pattern.findall(generation.text)[-1]
             answers.append(answer)
