@@ -242,17 +242,22 @@ class CoTSC(object):
                    n_completions=n_completions)
 
 
-            print(f"Output: \n{generation.text}")
-            answer = answer_pattern.findall(generation.text)[-1]
-            answers.append(answer)
-        prompt_answers.append(answers)
-        print("=" * 200)
+if __name__ == '__main__':
+    from pprint import pprint
+    import argparse
 
-    print("Self Consistency: Majority vote")
-    for prompt, answers in zip(prompts, prompt_answers):
-        print(prompt)
-        counts = Counter(answers)
-        answer = counts.most_common(1)
-        rest = counts.most_common(5)[1:]
-        print(f"Answer = {answer}")
-        print(f"Other candidates: {rest}")
+    parser = argparse.ArgumentParser(description='chain of thoughts (self consistency) - classification')
+    parser.add_argument('--prompt-toml', type=str, help="the path to the toml prompt path.")
+    args = parser.parse_args()
+
+    assert Path(args.prompt_toml).exists(), f"{args.prompt_toml} does not exist."
+
+    cotsc = CoTSC.from_toml(model='text-davinci-003',
+                            prompt_toml=args.prompt_toml,
+                            sampling_scheme=SamplingScheme(temperature=1.0, top_p=1, top_k=None),
+                            n_completions=5)
+
+    while (q := input("Enter a query (.quit to quit): ")) != ".quit":
+        print("query: " + q)
+        votes = cotsc.run(query=q)
+        pprint(votes)
