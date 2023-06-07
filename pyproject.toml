@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "llm-experiments"
+version = "0.1.0"
+description = "collection of LLM experiments"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{include = "llm_experiments"}]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+langchain = "^0.0.191"
+urllib3 = "^1.26.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
