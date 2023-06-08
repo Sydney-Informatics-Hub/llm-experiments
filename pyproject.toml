@@ -11,6 +11,7 @@ license = "MIT"
 python = "^3.10"
 langchain = "^0.0.191"
 urllib3 = "^1.26.1"
+toml = "^0.10"
 
 
 [build-system]
