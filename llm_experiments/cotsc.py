@@ -28,7 +28,7 @@ from typing import Optional, Union
 
 from langchain.schema import Generation, OutputParserException
 from langchain.llms import OpenAI
-from prompt_check import prompt_check
+from llm_experiments.utils import prompt_check
 
 
 @dataclass
@@ -172,7 +172,7 @@ class CoTSC(object):
 
     @staticmethod
     def _majority_vote(parsed: list[ClassificationOutput]) -> VOTES:
-        """ Classification output """
+        """ Collate votes on classification based on LLM outputs. """
         votes = dict()
         for p in parsed:
             votes_ans = votes.get(p.answer, {'votes': 0, 'steps': set()})
@@ -205,6 +205,7 @@ class CoTSC(object):
                   prompt_toml: Union[str, Path],
                   sampling_scheme: SamplingScheme,
                   n_completions: int):
+        """ Create the appropriate prompt template based on TOML file setting. """
         prompt_toml = Path(prompt_toml)
         if not prompt_toml.suffix == '.toml': raise ValueError("prompt_toml is not a toml file.")
         import toml
