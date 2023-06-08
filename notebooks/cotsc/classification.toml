@@ -1,0 +1,11 @@
+[class_0]
+instruction = """description of class 0.
+"""
+[[class_0.examples]]
+query = "query"
+steps = "decomposed steps that led to why query should be class_0."
+
+[class_1]
+instruction = """description of class 1.
+"""
+# examples not a requirement.
