@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-[[ -z "$OPENAI_API_KEY" ]] && echo "Missing OPENAI_API_KEY." && exit 1;
+[[ -z "$OPENAI_API_KEY" ]] && ( echo "Missing OPENAI_API_KEY."; exit 1 )
 
 MODEL="text-davinci-003"
 PROMPT="the meaning of life is"
