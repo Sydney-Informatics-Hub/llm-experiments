@@ -3,18 +3,6 @@
 In simple terms, use a probabilistic sampling strategy for LLM decoding.
 Take the majority vote of the answer.
 
-```
-from langchain.callbacks import get_openai_callback
-
-def count_tokens(chain, query):
-    with get_openai_callback() as cb:
-        result = chain.run(query)
-        print(f'Spent a total of {cb.total_tokens} tokens')
-        print(cb) >>> token used, successful requests, total cost.
-
-    return result
-```
-
 Sampling Strategies:
 1. temperature sampling - softmax doesn't work well with large values. Increase for more stochastic outputs.
 2. top-k - select top-k most probable tokens and sample from them.
@@ -111,7 +99,10 @@ def create_cot_prompt_template(
     )
 
 
-VOTES = list
+NUM_VOTES = int
+STEPS = set[str]
+CLAZZ = str
+VOTES = list[tuple[CLAZZ, dict[str, Union[NUM_VOTES, STEPS]]]]
 
 
 class ClassificationOutput(BaseModel):
