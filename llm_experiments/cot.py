@@ -1,7 +1,9 @@
 """ Chain Of Thought
 A prompting technique used to encourage the model to generate a series of intermediate reasoning steps.
+
+This script uses examples from the Chain of Thoughts paper.
+https://arxiv.org/abs/2201.11903
 """
-from pprint import pprint
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain.llms import OpenAI
 
