@@ -28,6 +28,9 @@ class CostThresholdReachedException(Exception):
     def __init__(self, cost: float, cost_threshold: float):
         self.cost, self.cost_threshold = cost, cost_threshold
 
+    def __repr__(self) -> str:
+        return f"< cost={self.cost} cost_threshold={self.cost_threshold}>"
+
 
 @dataclass
 class TikDollar(object):
@@ -53,13 +56,12 @@ def count_input_tokens(model: str, prompt: str) -> int:
     return len(tokens)
 
 
-def tikdollar(cost_threshold: float, repeat: int = 0, verbose: bool = False):
+def tikdollar(cost_threshold: float, verbose: bool = False):
+    if isinstance(cost_threshold, int): cost_threshold = float(cost_threshold)
     if not isinstance(cost_threshold, float): raise TypeError("cost_threshold must be a float.")
-    if not isinstance(repeat, int): raise TypeError("repeat must be a float.")
-
+    if not cost_threshold >= 0: raise ValueError("cost_threshold must be >= 0.")
     # todo: check arg types and value ranges.
     cost_threshold: float = cost_threshold
-    repeat: int = repeat
     verbose: bool = verbose
 
     def decorator(func: Callable):
