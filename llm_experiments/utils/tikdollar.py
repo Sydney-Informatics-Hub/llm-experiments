@@ -124,6 +124,10 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
 
             res: LLMResult = func(*args, **kwargs)
             token_usage = res.llm_output.get('token_usage')
+            token_usage = res.llm_output.get('token_usage', None)
+            if token_usage is None:
+                raise RuntimeError("Expected LLMResult.llm_output to contain 'token_usage'.")
+
             num_input_tokens = token_usage.get('prompt_tokens')
             total_tokens = token_usage.get('total_tokens')
             num_output_tokens = total_tokens - num_input_tokens
