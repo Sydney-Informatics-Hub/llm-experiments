@@ -8,6 +8,11 @@ OpenAI charges you for both input and output tokens.
 
 Features:
 1. cost threshold - before you send + cut off automatically with internal state counter.
+
+Tips on minimising costs:
+1. multi-task prompting (i.e. ask in the prompt to classify X number of examples instead of just 1)
+2. NER preprocessing (i.e. replace entities with a shorter entity name - subword-wise)
+3. Paraphrase to a shorter prompt.
 """
 import sys
 from typing import Callable, Union, Any
@@ -24,7 +29,7 @@ import tiktoken
 from langchain.schema import LLMResult
 
 PROMPT = str
-ERR_SUPPORTED_MODELS = "Currently only supports OpenAI and ChatOpenAI llms."
+ERR_SUPPORTED_MODELS = "Currently only supports OpenAI llm."  # todo: ChatOpenAI
 
 
 class CostThresholdReachedException(Exception):
@@ -83,8 +88,8 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
                 llm = kwargs.get('llm', None)
                 prompt = kwargs.get('prompt', None)
             if llm is None or prompt is None: raise ValueError("Arguments llm or prompt is missing.")
-            if not isinstance(llm, OpenAI) and not isinstance(llm, ChatOpenAI):
-                raise TypeError("llm is not OpenAI or ChatOpenAI langchain models.")
+            if not isinstance(llm, OpenAI):
+                raise TypeError("llm is not an OpenAI langchain model.")
             if not isinstance(prompt, str):
                 raise TypeError("prompt must be a str. If you're using a prompt template, call .format() first.")
 
@@ -92,17 +97,17 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
             num_output_tokens: int
             cost: float
 
+            # before you send: input tokens
             num_input_tokens = count_input_tokens(llm.model_name, prompt)
             cost = get_openai_token_cost_for_model(
                 model_name=llm.model_name, num_tokens=num_input_tokens,
                 is_completion=False
             )
+            # before you send: output tokens
             if isinstance(llm, OpenAI):
                 est_output_tokens = int(llm.max_tokens / 2)
                 num_output_tokens = est_output_tokens * max(llm.n, llm.best_of)  # n completions
-            elif isinstance(llm, ChatOpenAI):
-                est_output_tokens = 0
-                num_output_tokens = est_output_tokens * llm.n  # n completions
+            # todo: ChatOpenAI support
             else:
                 raise NotImplementedError(ERR_SUPPORTED_MODELS)
             cost += get_openai_token_cost_for_model(
@@ -110,6 +115,7 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
                 is_completion=True,
             )
 
+            # before you send: cost threshold
             min_cost_after_call = tikdollar_wrapper.tikdollar.cost + cost
             if verbose:
                 print(f"{'Estimated cost on next request:'.ljust(40)} "
@@ -123,7 +129,8 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
                     raise CostThresholdReachedException(cost_threshold=cost_threshold, cost=min_cost_after_call)
 
             res: LLMResult = func(*args, **kwargs)
-            token_usage = res.llm_output.get('token_usage')
+
+            # after you send: update with actual cost.
             token_usage = res.llm_output.get('token_usage', None)
             if token_usage is None:
                 raise RuntimeError("Expected LLMResult.llm_output to contain 'token_usage'.")
@@ -156,19 +163,13 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
 def test_tikdollar(llm: Union[OpenAI, ChatOpenAI], prompt: str) -> LLMResult:
     if isinstance(llm, OpenAI):
         return llm.generate([prompt])
-    elif isinstance(llm, ChatOpenAI):
-        # todo: uses messages.
-        from langchain.schema import (
-            AIMessage, HumanMessage, SystemMessage
-        )
-        return llm.generate([[HumanMessage(content=prompt)]])
     else:
         raise NotImplementedError(ERR_SUPPORTED_MODELS)
 
 
 if __name__ == '__main__':
-    # openai = OpenAI(model_name='text-ada-001', n=1)
-    openai = ChatOpenAI(model_name='gpt-3.5-turbo')
+    openai = OpenAI(model_name='text-ada-001', n=1)
+    # openai = ChatOpenAI(model_name='gpt-3.5-turbo')
 
     prompts = ['hello, repeat after me 1 time.',
                'hello, repeat after me 2 times.']
