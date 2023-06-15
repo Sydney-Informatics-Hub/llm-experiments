@@ -29,12 +29,6 @@ class CostThresholdReachedException(Exception):
         self.cost, self.cost_threshold = cost, cost_threshold
 
 
-class TokenCounts(NamedTuple):
-    num_tokens: int
-    cost: float
-    model: str
-
-
 @dataclass
 class TikDollar(object):
     num_input_tokens: int
