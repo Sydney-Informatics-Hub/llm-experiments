@@ -1,4 +1,4 @@
-""" Token Counter
+""" TikDollar
 
 OpenAI charges you for both input and output tokens.
 
@@ -6,7 +6,7 @@ OpenAI charges you for both input and output tokens.
 2. Before you send: Estimate number of output tokens.
 3. After you send: Update actual number of output tokens.
 
-Useful features:
+Features:
 1. cost threshold - before you send + cut off automatically with internal state counter.
 """
 import sys
@@ -97,7 +97,6 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
                 model_name=llm.model_name, num_tokens=num_input_tokens,
                 is_completion=False
             )
-            # todo: estimate cost from input tokens, optionally estimate output tokens.
             if isinstance(llm, OpenAI):
                 est_output_tokens = int(llm.max_tokens / 2)
                 num_output_tokens = est_output_tokens * max(llm.n, llm.best_of)  # n completions
@@ -164,8 +163,6 @@ def test_tikdollar(llm: Union[OpenAI, ChatOpenAI], prompt: str) -> LLMResult:
 
 
 if __name__ == '__main__':
-    # todo: ltest - OpenAI
-    # todo: ltest - ChatOpenAI
     # openai = OpenAI(model_name='text-ada-001', n=1)
     openai = ChatOpenAI(model_name='gpt-3.5-turbo')
 
