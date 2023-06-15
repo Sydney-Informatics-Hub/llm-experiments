@@ -10,7 +10,7 @@ Useful features:
 1. cost threshold - before you send + cut off automatically with internal state counter.
 """
 import sys
-from typing import Callable, NamedTuple, Union
+from typing import Callable, NamedTuple, Union, Any
 import functools
 from dataclasses import dataclass
 
@@ -23,7 +23,9 @@ from langchain.callbacks.openai_info import (
 )
 
 import tiktoken
+from langchain.schema import LLMResult
 
+PROMPT = str
 ERR_SUPPORTED_MODELS = "Currently only supports OpenAI and ChatOpenAI llms."
 
 
@@ -70,7 +72,7 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
     verbose = verbose
     raise_err = raise_err
 
-    def decorator(func: Callable):
+    def decorator(func: Callable[[Union[OpenAI, ChatOpenAI], PROMPT, Any], LLMResult]):
         @functools.wraps(func)
         def tikdollar_wrapper(*args, **kwargs):
             if len(args) >= 2:
@@ -98,11 +100,11 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
                 is_completion=False
             )
             # todo: estimate cost from input tokens, optionally estimate output tokens.
-            est_output_tokens = 0
             if isinstance(llm, OpenAI):
                 est_output_tokens = int(llm.max_tokens / 2)
                 num_output_tokens = est_output_tokens * max(llm.n, llm.best_of)  # n completions
             elif isinstance(llm, ChatOpenAI):
+                est_output_tokens = 0
                 num_output_tokens = est_output_tokens * llm.n  # n completions
             else:
                 raise NotImplementedError(ERR_SUPPORTED_MODELS)
@@ -110,6 +112,7 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
                 model_name=llm.model_name, num_tokens=num_output_tokens,
                 is_completion=True,
             )
+
             min_cost_after_call = tikdollar_wrapper.tikdollar.cost + cost
             if verbose:
                 print(f"{'Estimated cost on next request:'.ljust(40)} "
@@ -119,32 +122,24 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
                 if raise_err:
                     raise CostThresholdReachedException(cost_threshold=cost_threshold, cost=min_cost_after_call)
 
-            if isinstance(llm, OpenAI):
-                cb: OpenAICallbackHandler
-                with get_openai_callback() as cb:
-                    res = func(*args, **kwargs)
-                    if num_input_tokens != cb.prompt_tokens:
-                        print(f"[warn] estimated input tokens did not match with callback count. "
-                              f"Expecting {num_input_tokens}. Got {cb.prompt_tokens}",
-                              file=sys.stderr)
-                    num_input_tokens = cb.prompt_tokens
-                    num_output_tokens = cb.completion_tokens
-                    cost = cb.total_cost
-                    if verbose: print(f"{'Actual cost on request:'.ljust(40)} "
-                                      f"Input tokens={num_input_tokens}\t"
-                                      f"Output tokens={num_output_tokens}\t"
-                                      f"Cost={cost}")
-                    tikdollar_wrapper.tikdollar.num_input_tokens += num_input_tokens
-                    tikdollar_wrapper.tikdollar.num_output_tokens += num_output_tokens
-                    tikdollar_wrapper.tikdollar.cost += cost
-            elif isinstance(llm, ChatOpenAI):
-                res = func(*args, **kwargs)
-                tikdollar_wrapper.tikdollar.num_input_tokens += num_input_tokens
-                tikdollar_wrapper.tikdollar.num_output_tokens += num_output_tokens
-                tikdollar_wrapper.tikdollar.cost += cost
-            else:
-                raise NotImplementedError(ERR_SUPPORTED_MODELS)
-
+            res: LLMResult = func(*args, **kwargs)
+            token_usage = res.llm_output.get('token_usage')
+            num_input_tokens = token_usage.get('prompt_tokens')
+            total_tokens = token_usage.get('total_tokens')
+            num_output_tokens = total_tokens - num_input_tokens
+            cost = get_openai_token_cost_for_model(
+                model_name=llm.model_name, num_tokens=num_input_tokens, is_completion=False
+            )
+            cost += get_openai_token_cost_for_model(
+                model_name=llm.model_name, num_tokens=num_output_tokens, is_completion=True
+            )
+            if verbose: print(f"{'Actual cost on request:'.ljust(40)} "
+                              f"Input tokens={num_input_tokens}\t"
+                              f"Output tokens={num_output_tokens}\t"
+                              f"Cost={cost}")
+            tikdollar_wrapper.tikdollar.num_input_tokens += num_input_tokens
+            tikdollar_wrapper.tikdollar.num_output_tokens += num_output_tokens
+            tikdollar_wrapper.tikdollar.cost += cost
             return res
 
         tikdollar_wrapper.tikdollar = TikDollar.empty()
@@ -154,7 +149,7 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
 
 
 @tikdollar(cost_threshold=1.0, verbose=True, raise_err=True)
-def test_tikdollar(llm: Union[OpenAI, ChatOpenAI], prompt: str):
+def test_tikdollar(llm: Union[OpenAI, ChatOpenAI], prompt: str) -> LLMResult:
     if isinstance(llm, OpenAI):
         return llm.generate([prompt])
     elif isinstance(llm, ChatOpenAI):
@@ -167,8 +162,8 @@ def test_tikdollar(llm: Union[OpenAI, ChatOpenAI], prompt: str):
 if __name__ == '__main__':
     # todo: ltest - OpenAI
     # todo: ltest - ChatOpenAI
-    # openai = OpenAI(model_name='text-ada-001', n=1)
-    openai = ChatOpenAI(model_name='gpt-3.5-turbo')
+    openai = OpenAI(model_name='text-ada-001', n=1)
+    # openai = ChatOpenAI(model_name='gpt-3.5-turbo')
 
     prompts = ['hello, repeat after me 1 time.',
                'hello, repeat after me 2 times.']
