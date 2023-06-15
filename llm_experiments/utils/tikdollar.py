@@ -29,7 +29,7 @@ class CostThresholdReachedException(Exception):
         self.cost, self.cost_threshold = cost, cost_threshold
 
     def __repr__(self) -> str:
-        return f"< cost={self.cost} cost_threshold={self.cost_threshold}>"
+        return f"<cost={self.cost} cost_threshold={self.cost_threshold}>"
 
 
 @dataclass
