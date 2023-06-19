@@ -16,6 +16,7 @@ from typing import Optional, Union
 
 from langchain.schema import Generation, OutputParserException
 from langchain.llms import OpenAI
+from langchain.schema import LLMResult
 from llm_experiments.utils import prompt_check
 
 
@@ -153,13 +154,17 @@ class CoTSC(object):
         # parse the output for answer.
         prompt = self.prompt.format(query=query)
         prompts = list(map(prompt_check, [prompt]))
-        output = self.llm.generate(prompts)
+        output = self._tikdollar_run(self.llm, prompts[0])
         if not len(output.generations) == 1: raise RuntimeError("1 prompt is provided, expecting 1 output generation")
         completions = output.generations[0]
         if not len(completions) == self.n_completions:
             raise RuntimeError(f"Expecting {self.n_completions}. Got {len(completions)}")
 
         return self._majority_vote([self.fallback_parse(c) for c in completions])
+
+    @staticmethod
+    def _tikdollar_run(llm, prompt) -> LLMResult:
+        return llm.generate([prompt])
 
     @staticmethod
     def _majority_vote(parsed: list[ClassificationOutput]) -> VOTES:
