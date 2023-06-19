@@ -31,7 +31,7 @@ from langchain.schema import LLMResult
 __all__ = ['tikdollar', 'TikDollar']
 
 PROMPT = str
-ERR_SUPPORTED_MODELS = "Currently only supports OpenAI llm."  # todo: ChatOpenAI
+ERR_UNSUPPORTED_MODELS = "Currently only supports OpenAI llm."  # todo: ChatOpenAI
 
 
 class CostThresholdReachedException(Exception):
@@ -126,11 +126,11 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
             )
             # before you send: output tokens
             if isinstance(llm, OpenAI):
-                est_output_tokens = int(llm.max_tokens / 2)
+                est_output_tokens = int(llm.max_tokens * 0.25)
                 num_output_tokens = est_output_tokens * max(llm.n, llm.best_of)  # n completions
             # todo: ChatOpenAI support
             else:
-                raise NotImplementedError(ERR_SUPPORTED_MODELS)
+                raise NotImplementedError(ERR_UNSUPPORTED_MODELS)
             cost += get_openai_token_cost_for_model(
                 model_name=llm.model_name, num_tokens=num_output_tokens,
                 is_completion=True,
@@ -185,7 +185,7 @@ def test_tikdollar(llm: Union[OpenAI, ChatOpenAI], prompt: str) -> LLMResult:
     if isinstance(llm, OpenAI):
         return llm.generate([prompt])
     else:
-        raise NotImplementedError(ERR_SUPPORTED_MODELS)
+        raise NotImplementedError(ERR_UNSUPPORTED_MODELS)
 
 
 if __name__ == '__main__':
