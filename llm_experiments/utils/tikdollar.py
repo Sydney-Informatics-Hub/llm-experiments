@@ -28,6 +28,8 @@ from langchain.callbacks.openai_info import (
 import tiktoken
 from langchain.schema import LLMResult
 
+__all__ = ['tikdollar', 'TikDollar']
+
 PROMPT = str
 ERR_SUPPORTED_MODELS = "Currently only supports OpenAI llm."  # todo: ChatOpenAI
 
@@ -53,6 +55,25 @@ class TikDollar(object):
     @classmethod
     def empty(cls):
         return cls(num_input_tokens=0, num_output_tokens=0, cost=0)
+
+    @staticmethod
+    def track(clz, llm_fn: Callable[[Any], LLMResult],
+              cost_threshold: float, raise_err=True, verbose=False
+              ) -> 'TikDollar':
+        """
+        Track the method calls of the class with tikdollar.
+        This method is idempotent.
+        :param clz: your class containing your llm_fn
+        :param llm_fn:  the function in your class that follows the tikdollar function format.
+        :param cost_threshold: cuts off before this cost threshold is reached.
+        :param raise_err: when cutting off, raise error. Else prints a message and continues.
+        :param verbose: verbosity.
+        :return: TikDollar
+        """
+        decorator = tikdollar(cost_threshold=cost_threshold, raise_err=raise_err, verbose=verbose)
+        if hasattr(llm_fn, '__wrapped__'): llm_fn = llm_fn.__wrapped__  # handle rebind on decorator fn
+        setattr(clz, llm_fn.__name__, decorator(llm_fn))
+        return getattr(clz, llm_fn.__name__).tikdollar
 
 
 # low level function
