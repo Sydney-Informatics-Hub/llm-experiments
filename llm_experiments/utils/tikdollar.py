@@ -145,7 +145,7 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
                       f"${cost:.8f}\tAccumulates to: ${min_cost_after_call:.8f}")
             if min_cost_after_call > cost_threshold:
                 print(f"Estimated cost exceeds threshold: ${min_cost_after_call} > ${cost_threshold}. "
-                      f"Difference = ${cost_threshold - min_cost_after_call}", file=sys.stderr)
+                      f"Difference = ${min_cost_after_call - cost_threshold}", file=sys.stderr)
                 if raise_err:
                     raise CostThresholdReachedException(cost_threshold=cost_threshold, cost=min_cost_after_call)
 
@@ -168,7 +168,7 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
             if verbose: print(f"{'Actual cost after request:'.ljust(40)} "
                               f"Input = {num_input_tokens} tokens\t"
                               f"Output = {num_output_tokens} tokens\t"
-                              f"Cost={cost}")
+                              f"Cost=${cost}")
             tikdollar_wrapper.tikdollar.num_input_tokens += num_input_tokens
             tikdollar_wrapper.tikdollar.num_output_tokens += num_output_tokens
             tikdollar_wrapper.tikdollar.cost += cost
