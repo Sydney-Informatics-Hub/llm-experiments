@@ -103,12 +103,13 @@ def create_cot_prompt_template(
 NUM_VOTES = int
 STEPS = set[str]
 CLAZZ = str
-VOTES = list[tuple[CLAZZ, dict[str, Union[NUM_VOTES, STEPS]]]]
+VOTES = dict[CLAZZ, dict[str, Union[NUM_VOTES, STEPS]]]
 
 
 class ClassificationOutput(BaseModel):
     answer: str = Field(description="the classification")
     steps: str = Field(description="the reasoning steps that resulted in the classification")
+    completion: Optional[str] = None
 
 
 class CoTSC(object):
@@ -171,16 +172,18 @@ class CoTSC(object):
         """ Collate votes on classification based on LLM outputs. """
         votes = dict()
         for p in parsed:
-            votes_ans = votes.get(p.answer, {'votes': 0, 'steps': set()})
+            votes_ans = votes.get(p.answer, {'votes': 0, 'steps': set(), 'completions': list()})
             votes_ans['votes'] = votes_ans.get('votes') + 1
             votes_ans['steps'].add(p.steps)
+            votes_ans.get('completions').append(p.completion)
             votes[p.answer] = votes_ans
-        return sorted(votes.items(), key=lambda kv: kv[1].get('votes'), reverse=True)
+        return votes
 
     def fallback_parse(self, completion: Generation) -> ClassificationOutput:
         """ Parses the output using the parser first. Fallback to regex. Then N/A. """
         try:
-            parsed = self.parser.parse(completion.text)
+            parsed: ClassificationOutput = self.parser.parse(completion.text)
+            parsed.completion = completion.text
             return parsed
         except OutputParserException as ope:
             ans_ptn = re.compile("(" + "|".join(self.classes) + ")", flags=re.IGNORECASE)
@@ -190,10 +193,10 @@ class CoTSC(object):
             steps = re.sub('answer[:]?', '', steps, flags=re.IGNORECASE)
             steps = steps.strip()
             # todo: log
-            return ClassificationOutput(answer=ans, steps=steps)
+            return ClassificationOutput(answer=ans, steps=steps, completion=completion.text)
         except Exception as e:
             # todo: log
-            return ClassificationOutput(answer='N/A', steps='N/A')
+            return ClassificationOutput(answer='N/A', steps='N/A', completion=completion.text)
 
     @classmethod
     def from_toml(cls,
