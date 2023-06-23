@@ -104,6 +104,7 @@ NUM_VOTES = int
 STEPS = set[str]
 CLAZZ = str
 VOTES = dict[CLAZZ, dict[str, Union[NUM_VOTES, STEPS]]]
+PROMPT = str
 
 
 class ClassificationOutput(BaseModel):
@@ -153,7 +154,11 @@ class CoTSC(object):
         # use the few shot prompt as input to the llm.
         # generate X number of outputs.
         # parse the output for answer.
-        prompt = self.prompt.format(query=query)
+        try:
+            query = str(query)
+        except Exception as e:
+            raise TypeError(f"query must be a string. {e}")
+        prompt = self.prompt.format(query=str(query))
         prompts = list(map(prompt_check, [prompt]))
         output = self._tikdollar_run(self.llm, prompts[0])
         if not len(output.generations) == 1: raise RuntimeError("1 prompt is provided, expecting 1 output generation")
@@ -162,6 +167,13 @@ class CoTSC(object):
             raise RuntimeError(f"Expecting {self.n_completions}. Got {len(completions)}")
 
         return self._majority_vote([self.fallback_parse(c) for c in completions])
+
+    def dryrun(self, query: str) -> PROMPT:
+        try:
+            query = str(query)
+        except Exception as e:
+            raise TypeError(f"query must be a string. {e}")
+        return self.prompt.format(query=str(query))
 
     @staticmethod
     def _tikdollar_run(llm, prompt) -> LLMResult:
