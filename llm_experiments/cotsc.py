@@ -15,9 +15,23 @@ from pathlib import Path
 from typing import Optional, Union
 
 from langchain.schema import Generation, OutputParserException
+from langchain.llms.base import BaseLLM
+from langchain.chat_models.base import BaseChatModel
 from langchain.llms import OpenAI
-from langchain.schema import LLMResult
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts.chat import HumanMessagePromptTemplate
+from langchain.schema import LLMResult, BaseMessage
 from llm_experiments.utils import prompt_check
+
+
+def flatten(nested: list) -> list:
+    flattened = []
+    for e in nested:
+        if isinstance(e, list):
+            flattened.extend(flatten(e))
+        else:
+            flattened.append(e)
+    return flattened
 
 
 @dataclass
@@ -79,6 +93,7 @@ def create_cot_prompt_template(
     """ Create a prompt template following Chain of Thoughts. """
     if not isinstance(instructions, str) and instructions is not None:
         raise TypeError("instructions must be a string.")
+    if instructions is None: instructions = ''
     if isinstance(instructions, str) and not instructions.strip().endswith("\n"):
         instructions += "\n"
     instructions = instructions.strip()
@@ -104,7 +119,7 @@ NUM_VOTES = int
 STEPS = set[str]
 CLAZZ = str
 VOTES = dict[CLAZZ, dict[str, Union[NUM_VOTES, STEPS]]]
-PROMPT = str
+PROMPT = Union[str, BaseMessage]
 
 
 class ClassificationOutput(BaseModel):
@@ -114,7 +129,8 @@ class ClassificationOutput(BaseModel):
 
 
 class CoTSC(object):
-    MODELS = ('text-davinci-003', 'text-davinci-002', 'text-curie-001', 'text-babbage-001', 'text-ada-001')
+    MODELS = ('text-davinci-003', 'text-davinci-002', 'text-curie-001', 'text-babbage-001', 'text-ada-001',
+              'gpt-3.5-turbo')
 
     def __init__(self,
                  model: str,
@@ -134,21 +150,38 @@ class CoTSC(object):
         if not n_completions > 0: raise ValueError("n_completions must be > 0.")
         if n_completions > 10: print(f"Warning: {n_completions=}. This may incur significant costs.", file=sys.stderr)
 
-        self.llm = OpenAI(
-            model_name=model,
-            n=n_completions,
-            **sampling_scheme.openai(),
-        )
+        # output defs
+        parser = PydanticOutputParser(pydantic_object=ClassificationOutput)  # note: hard coded output definition
+        prompt.input_variables.append("format_instructions")
+        prompt.suffix = "\n\n{format_instructions}\n\n" + prompt.suffix
+        self.prompt = prompt
+        self.parser = parser
+
+        if model in ('gpt-3.5-turbo'):
+            model_kwargs = sampling_scheme.openai()
+            del model_kwargs['temperature']
+            self.llm = ChatOpenAI(
+                model_name=model,
+                n=n_completions,
+                temperature=sampling_scheme.temperature,
+                model_kwargs=model_kwargs,
+            )
+            # todo: perhaps there is a better way instead of re-introducing the input variables?
+            input_kwargs = {inp: f"{{{inp}}}" for inp in self.prompt.input_variables}
+            self.prompt = HumanMessagePromptTemplate.from_template(
+                self.prompt.format(**input_kwargs, )
+            )
+            self.prompt.prompt.partial_variables = {"format_instructions": self.parser.get_format_instructions()}
+        else:
+            self.llm = OpenAI(
+                model_name=model,
+                n=n_completions,
+                **sampling_scheme.openai(),
+            )
+            self.prompt.partial_variables = {"format_instructions": self.parser.get_format_instructions()}
         self.model = model
         self.classes = classes
         self.n_completions = n_completions
-
-        # output defs
-        parser = PydanticOutputParser(pydantic_object=ClassificationOutput)  # note: hard coded output definition
-        prompt.suffix = "\n\n{format_instructions}\n\n" + prompt.suffix
-        prompt.partial_variables = {'format_instructions': parser.get_format_instructions()}
-        self.prompt = prompt
-        self.parser = parser
 
     def run(self, query: str) -> VOTES:
         # use the few shot prompt as input to the llm.
@@ -160,9 +193,10 @@ class CoTSC(object):
             raise TypeError(f"query must be a string. {e}")
         prompt = self.prompt.format(query=str(query))
         prompts = list(map(prompt_check, [prompt]))
-        output = self._tikdollar_run(self.llm, prompts[0])
+        output: LLMResult = self._tikdollar_run(self.llm, prompts[0])
         if not len(output.generations) == 1: raise RuntimeError("1 prompt is provided, expecting 1 output generation")
-        completions = output.generations[0]
+
+        completions = flatten(output.generations)
         if not len(completions) == self.n_completions:
             raise RuntimeError(f"Expecting {self.n_completions}. Got {len(completions)}")
 
@@ -177,7 +211,13 @@ class CoTSC(object):
 
     @staticmethod
     def _tikdollar_run(llm, prompt) -> LLMResult:
-        return llm.generate([prompt])
+        if isinstance(llm, BaseLLM):
+            return llm.generate([prompt])
+        elif isinstance(llm, BaseChatModel):
+            messages = [[prompt]]
+            return llm.generate(messages)
+        else:
+            raise TypeError(f"LLM must be either a {BaseLLM.__name__} or {BaseChatModel.__name__}.")
 
     @staticmethod
     def _majority_vote(parsed: list[ClassificationOutput]) -> VOTES:
@@ -262,7 +302,7 @@ if __name__ == '__main__':
 
     assert Path(args.prompt_toml).exists(), f"{args.prompt_toml} does not exist."
 
-    cotsc = CoTSC.from_toml(model='text-davinci-003',
+    cotsc = CoTSC.from_toml(model='gpt-3.5-turbo',
                             prompt_toml=args.prompt_toml,
                             sampling_scheme=SamplingScheme(temperature=1.0, top_p=1, top_k=None),
                             n_completions=5)
