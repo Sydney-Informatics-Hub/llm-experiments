@@ -24,13 +24,12 @@ from langchain.chat_models import ChatOpenAI
 from langchain.callbacks.openai_info import (
     get_openai_token_cost_for_model,
 )
-
 import tiktoken
-from langchain.schema import LLMResult
+from langchain.schema import LLMResult, BaseMessage
 
 __all__ = ['tikdollar', 'TikDollar']
 
-PROMPT = str
+PROMPT = Union[str, BaseMessage]
 ERR_UNSUPPORTED_MODELS = "Currently only supports OpenAI llm."  # todo: ChatOpenAI
 
 
@@ -109,8 +108,10 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
                 llm = kwargs.get('llm', None)
                 prompt = kwargs.get('prompt', None)
             if llm is None or prompt is None: raise ValueError("Arguments llm or prompt is missing.")
-            if not isinstance(llm, OpenAI):
-                raise TypeError("llm is not an OpenAI langchain model.")
+            if type(llm) not in (OpenAI, ChatOpenAI):
+                raise TypeError("llm is not an OpenAI or ChatOpenAI langchain model.")
+            if isinstance(prompt, BaseMessage):
+                prompt = prompt.content
             if not isinstance(prompt, str):
                 raise TypeError("prompt must be a str. If you're using a prompt template, call .format() first.")
 
@@ -128,7 +129,12 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
             if isinstance(llm, OpenAI):
                 est_output_tokens = int(llm.max_tokens * 0.25)
                 num_output_tokens = est_output_tokens * max(llm.n, llm.best_of)  # n completions
-            # todo: ChatOpenAI support
+            elif isinstance(llm, ChatOpenAI):
+                if llm.max_tokens is None:
+                    num_output_tokens = 30 * llm.n
+                else:
+                    est_output_tokens = int(llm.max_tokens * 0.25)
+                    num_output_tokens = est_output_tokens * llm.n
             else:
                 raise NotImplementedError(ERR_UNSUPPORTED_MODELS)
             cost += get_openai_token_cost_for_model(
@@ -153,8 +159,7 @@ def tikdollar(cost_threshold: float, raise_err: bool = True, verbose: bool = Fal
 
             # after you send: update with actual cost.
             token_usage = res.llm_output.get('token_usage', None)
-            if token_usage is None:
-                raise RuntimeError("Expected LLMResult.llm_output to contain 'token_usage'.")
+            assert token_usage is not None, "Expected LLMResult.llm_output to contain 'token_usage'"
 
             num_input_tokens = token_usage.get('prompt_tokens')
             total_tokens = token_usage.get('total_tokens')
