@@ -10,15 +10,21 @@ passed, reasons = prompt_check(prompt)
 assert passed, reasons
 """
 import sys
+from typing import Union
+from langchain.schema import BaseMessage
 
 PASSED = bool
 
 
-def prompt_check(prompt: str) -> str:
-    if not isinstance(prompt, str): raise ValueError("prompt must be a string.")
+def prompt_check(prompt: Union[str, BaseMessage]) -> Union[str, BaseMessage]:
+    if isinstance(prompt, str):
+        content = prompt
+    elif isinstance(prompt, BaseMessage):
+        content = prompt.content
+    else: raise ValueError("prompt must be a string.")
     checks = dict()
     for check, fn in checks.items():
-        passed, reason = fn(prompt)
+        passed, reason = fn(content)
         if not passed:
             checks[check] = reason
     if len(checks) > 0:
