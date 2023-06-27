@@ -19,7 +19,7 @@ from langchain.llms.base import BaseLLM
 from langchain.chat_models.base import BaseChatModel
 from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
-from langchain.prompts.chat import HumanMessagePromptTemplate
+from langchain.prompts.chat import HumanMessagePromptTemplate, BaseMessagePromptTemplate
 from langchain.schema import LLMResult, BaseMessage
 from llm_experiments.utils import prompt_check
 
@@ -207,7 +207,12 @@ class CoTSC(object):
             query = str(query)
         except Exception as e:
             raise TypeError(f"query must be a string. {e}")
-        return self.prompt.format(query=str(query))
+
+        content = self.prompt.format(query=str(query))
+        if isinstance(self.prompt, BaseMessagePromptTemplate):
+            return content.content
+        else:
+            return content
 
     @staticmethod
     def _tikdollar_run(llm, prompt) -> LLMResult:
