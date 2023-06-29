@@ -106,7 +106,7 @@ def create_cot_prompt_template(
             raise ValueError(f"Missing keys (query, steps, answer) in example: {ex}")
 
     return FewShotPromptTemplate(
-        prefix=instructions,
+        prefix=instructions + "\n\n",
         example_prompt=cot_prompt_template,
         examples=cot_examples,
         suffix="Query: {query}",
