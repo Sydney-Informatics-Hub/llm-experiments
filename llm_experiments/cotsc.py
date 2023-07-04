@@ -21,7 +21,15 @@ from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts.chat import HumanMessagePromptTemplate, BaseMessagePromptTemplate
 from langchain.schema import LLMResult, BaseMessage
+from langchain.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
+
 from llm_experiments.utils import prompt_check
+from llm_experiments.cot import (create_cot_prompt_template,
+                                 create_cot_prompt_example,
+                                 COT_TEMPLATE)
+
+__all__ = ['SamplingScheme', 'CoTSC']
 
 
 def flatten(nested: list) -> list:
@@ -62,59 +70,6 @@ PaLM_540B = SamplingScheme(temperature=0.7, top_k=40, top_p=1)
 GPT3 = SamplingScheme(temperature=0.7, top_k=40, top_p=1)
 TEST = SamplingScheme(temperature=0.5, top_k=None, top_p=0.5)
 
-from langchain.prompts import FewShotPromptTemplate, PromptTemplate
-from langchain.output_parsers import PydanticOutputParser
-from pydantic import BaseModel, Field
-
-COT_EXAMPLE = dict[str, str]
-
-cot_prompt_template = PromptTemplate(
-    input_variables=['query', 'steps', 'answer'],
-    template="Query: {query}\nAnswer: {steps}. The answer is {answer}."
-)
-
-
-def create_cot_prompt_example(
-        query: str,
-        steps: str,
-        answer: str,
-) -> COT_EXAMPLE:
-    return {
-        'query': query,
-        'steps': steps,
-        'answer': answer,
-    }
-
-
-def create_cot_prompt_template(
-        instructions: Optional[str],
-        cot_examples: list[COT_EXAMPLE],
-) -> FewShotPromptTemplate:
-    """ Create a prompt template following Chain of Thoughts. """
-    if not isinstance(instructions, str) and instructions is not None:
-        raise TypeError("instructions must be a string.")
-    if instructions is None: instructions = ''
-    if isinstance(instructions, str) and not instructions.strip().endswith("\n"):
-        instructions += "\n"
-    instructions = instructions.strip()
-
-    if not isinstance(cot_examples, list): raise TypeError("cot_examples must be a list.")
-    if len(cot_examples) <= 0: raise ValueError("There must be at least 1 cot_example.")
-
-    for ex in cot_examples:
-        if not {"query", "steps", "answer"} == set(ex.keys()):
-            raise ValueError(f"Missing keys (query, steps, answer) in example: {ex}")
-
-    return FewShotPromptTemplate(
-        prefix=instructions + "\n\n",
-        example_prompt=cot_prompt_template,
-        examples=cot_examples,
-        suffix="Query: {query}",
-        input_variables=['query'],
-        example_separator='\n',
-    )
-
-
 NUM_VOTES = int
 STEPS = set[str]
 CLAZZ = str
@@ -134,14 +89,14 @@ class CoTSC(object):
 
     def __init__(self,
                  model: str,
-                 prompt: FewShotPromptTemplate,
+                 prompt: COT_TEMPLATE,
                  classes: list[str],
                  sampling_scheme: SamplingScheme,
                  n_completions: int,
                  ):
         if not isinstance(model, str): raise TypeError(f"model must be a string. {', '.join(CoTSC.MODELS)}")
         if model not in CoTSC.MODELS: raise ValueError(f"model must be one of {', '.join(CoTSC.MODELS)}")
-        if not isinstance(prompt, FewShotPromptTemplate): raise TypeError("prompt must be a FewShotPrompt for CoT.")
+        if not isinstance(prompt, COT_TEMPLATE): raise TypeError("prompt must be a FewShotPrompt/COT_TEMPLATE for CoT.")
         if not prompt.suffix: raise ValueError("prompt must have a suffix for CoT.")
         if not isinstance(classes, list): raise TypeError("classes must be a list of strings.")
         if len(classes) <= 0: raise ValueError("There must be at least one class.")

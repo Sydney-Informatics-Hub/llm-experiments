@@ -6,6 +6,62 @@ https://arxiv.org/abs/2201.11903
 """
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain.llms import OpenAI
+from typing import Optional
+
+__all__ = ['create_cot_prompt_example', 'create_cot_prompt_template',
+           'COT_EXAMPLE', 'COT_TEMPLATE']
+
+COT_EXAMPLE = dict[str, str]
+COT_TEMPLATE = FewShotPromptTemplate
+
+cot_prompt_template = PromptTemplate(
+    input_variables=['query', 'steps', 'answer'],
+    template="Query: {query}\nAnswer: {steps}. The answer is {answer}."
+)
+
+
+def create_cot_prompt_example(
+        query: str,
+        steps: str,
+        answer: str,
+) -> COT_EXAMPLE:
+    return {
+        'query': query,
+        'steps': steps,
+        'answer': answer,
+    }
+
+
+def create_cot_prompt_template(
+        instructions: Optional[str],
+        cot_examples: list[COT_EXAMPLE],
+) -> COT_TEMPLATE:
+    """ Create a prompt template following Chain of Thoughts. """
+    if not isinstance(instructions, str) and instructions is not None:
+        raise TypeError("instructions must be a string.")
+    if instructions is None: instructions = ''
+    if isinstance(instructions, str) and not instructions.strip().endswith("\n"):
+        instructions += "\n"
+    instructions = instructions.strip()
+
+    if not isinstance(cot_examples, list): raise TypeError("cot_examples must be a list.")
+    if len(cot_examples) <= 0: raise ValueError("There must be at least 1 cot_example.")
+
+    for ex in cot_examples:
+        if not {"query", "steps", "answer"} == set(ex.keys()):
+            raise ValueError(f"Missing keys (query, steps, answer) in example: {ex}")
+
+    return FewShotPromptTemplate(
+        prefix=instructions + "\n\n",
+        example_prompt=cot_prompt_template,
+        examples=cot_examples,
+        suffix="Query: {query}",
+        input_variables=['query'],
+        example_separator='\n',
+    )
+
+
+### Example used in the Chain of Thoughts Paper ###
 
 raw_template: str = r"""
 Q: {query} 
@@ -60,8 +116,6 @@ cot_template = FewShotPromptTemplate(
     example_separator="\n",
 )
 
-query = 'The cafeteria had 23 apples. If they used 20 to make lunch and bought 6 more, how many apples ' \
-        'do they have?'
 if __name__ == '__main__':
     # uses /v1/completions endpoint
     # https://platform.openai.com/docs/models/model-endpoint-compatibility
@@ -73,6 +127,9 @@ if __name__ == '__main__':
                    # model_name='text-ada-001',
                    n=1)
     print(model)
+
+    query = 'The cafeteria had 23 apples. If they used 20 to make lunch and bought 6 more, how many apples ' \
+            'do they have?'
 
     print("## Chain of Thought ##")
     print(cot_template.format(query=query))
