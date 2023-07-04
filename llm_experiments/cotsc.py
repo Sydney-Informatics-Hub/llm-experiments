@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from llm_experiments.utils import prompt_check
 from llm_experiments.cot import (create_cot_prompt_template,
                                  create_cot_prompt_example,
-                                 COT_TEMPLATE)
+                                 COT_TEMPLATE, CoTDataLeak)
 
 __all__ = ['SamplingScheme', 'CoTSC']
 
@@ -138,6 +138,8 @@ class CoTSC(object):
         self.classes = classes
         self.n_completions = n_completions
 
+        self._dataleak = CoTDataLeak(prompt, raise_err=True)
+
     def run(self, query: str) -> VOTES:
         # use the few shot prompt as input to the llm.
         # generate X number of outputs.
@@ -146,6 +148,9 @@ class CoTSC(object):
             query = str(query)
         except Exception as e:
             raise TypeError(f"query must be a string. {e}")
+
+        _ = self._dataleak.check(query)
+
         prompt = self.prompt.format(query=str(query))
         prompts = list(map(prompt_check, [prompt]))
         output: LLMResult = self._tikdollar_run(self.llm, prompts[0])
