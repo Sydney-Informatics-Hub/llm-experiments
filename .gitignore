@@ -161,3 +161,5 @@ cython_debug/
 .DS_STORE
 
 .venv*/
+data/
+openai_api_key.txt
