@@ -250,7 +250,7 @@ class CoTSC(object):
             instruction = f"<class>\n{clz}: {instruction}</class>"
             instructions.append(instruction)
 
-        instruction = prefix_instructions + f"""
+        instruction = prefix_instructions + "\n\n" f"""
 The following are {len(classes)} classes with a description of each. 
 These are XML delimited with <class> tags in the format: <class> Class: Description </class>.
 Please classify each 'query' as one of the {len(classes)} classes.\n\n""" + '\n'.join(instructions) + "\n\n"
