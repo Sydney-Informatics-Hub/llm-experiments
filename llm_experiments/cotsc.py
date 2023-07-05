@@ -226,6 +226,13 @@ class CoTSC(object):
         if not prompt_toml.suffix == '.toml': raise ValueError("prompt_toml is not a toml file.")
         import toml
         data = toml.load(prompt_toml)
+
+        if "PREFIX" in data.keys():
+            prefix = data.pop("PREFIX")
+            prefix_instructions = prefix.get('instruction', '')
+        else:
+            prefix_instructions = ''
+
         classes = list(data.keys())
 
         instructions = []
