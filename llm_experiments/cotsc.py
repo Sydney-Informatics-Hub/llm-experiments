@@ -240,11 +240,13 @@ class CoTSC(object):
                 cot_examples.append(cot_ex)
 
             instruction = data.get(clz).get('instruction')
-            instruction = f"{clz}: {instruction}"
+            instruction = f"<class>\n{clz}: {instruction}</class>"
             instructions.append(instruction)
 
-        instruction = f"""The following are {len(classes)} classes with a description of each. 
-    Please classify each 'query' as one of the {len(classes)} classes.\n""" + '\n'.join(instructions) + "\n\n"
+        instruction = prefix_instructions + f"""
+The following are {len(classes)} classes with a description of each. 
+These are XML delimited with <class> tags in the format: <class> Class: Description </class>.
+Please classify each 'query' as one of the {len(classes)} classes.\n\n""" + '\n'.join(instructions) + "\n\n"
 
         template = create_cot_prompt_template(
             instructions=instruction,
