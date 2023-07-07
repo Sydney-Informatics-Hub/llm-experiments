@@ -45,23 +45,39 @@ def flatten(nested: list) -> list:
 @dataclass
 class SamplingScheme(object):
     temperature: float
-    top_k: Optional[int]
     top_p: float  # i.e. nucleus sampling
+    top_k: Optional[int] = None
+    presence_penalty: Optional[float] = None
+    frequency_penalty: Optional[float] = None
 
     def openai(self) -> dict:
         # there is no top_k parameter for openai api.
         if self.top_k is not None:
             print("-- OpenAI does not have top_k. It is ignored.", file=sys.stderr)
 
+        # compulsory
         if not 0 <= self.temperature <= 2:
             raise ValueError("Temperature must be between 0 and 2.")
         if not 0 <= self.top_p <= 1:
             raise ValueError("Top p must be between 0 and 1. "
                              "It is the probability mass of output tokens to sample from.")
-        return {
+        args = {
             'temperature': self.temperature,
             'top_p': self.top_p
         }
+        # optional
+        if self.presence_penalty is not None:
+            if not -2.0 <= self.presence_penalty <= 2.0:
+                raise ValueError("Presence penalty must be between -2.0 and 2.0. "
+                                 "It is how much to penalise the token if it's already been sampled.")
+            args['presence_penalty'] = self.presence_penalty
+        if self.frequency_penalty is not None:
+            if not -2.0 <= self.presence_penalty <= 2.0:
+                raise ValueError("Frequency penalty must be between -2.0 and 2.0. "
+                                 "It is how much to penalise the token if it's already been sampled proportional to "
+                                 "the number of times its been sampled.")
+            args['frequency_penalty'] = self.frequency_penalty
+        return args
 
 
 # Configurations used in the CoT-SC paper:
@@ -271,17 +287,29 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='chain of thoughts (self consistency) - classification')
-    parser.add_argument('--prompt-toml', type=str, help="the path to the toml prompt path.")
+    parser.add_argument('--prompt-toml', required=True, type=str, help="the path to the toml prompt path.")
+    parser.add_argument('--n-completions', required=True, type=int, help='model number of output completions.')
+    parser.add_argument('--temperature', required=True, type=float, help='model temperature scaling')
+    parser.add_argument('--top-p', required=True, type=float, help='model nucleus sampling')
+    parser.add_argument('--presence-penalty', required=False, type=float, help='model presence penalty', default=None)
     args = parser.parse_args()
+
+    assert args.n_completions <= 10, "Too many completions? Hard coded to stop at 10 to avoid excessive cost."
 
     assert Path(args.prompt_toml).exists(), f"{args.prompt_toml} does not exist."
 
     cotsc = CoTSC.from_toml(model='gpt-3.5-turbo',
                             prompt_toml=args.prompt_toml,
-                            sampling_scheme=SamplingScheme(temperature=1.0, top_p=1, top_k=None),
+                            sampling_scheme=SamplingScheme(temperature=args.temperature,
+                                                           top_p=args.top_p,
+                                                           presence_penalty=args.presence_penalty),
                             n_completions=5)
 
     while (q := input("Enter a query (.quit to quit): ")) != ".quit":
         print("query: " + q)
         votes = cotsc.run(query=q)
-        pprint(votes)
+        for clazz, data in votes.items():
+            print(f"== Classification: {clazz} ==")
+            steps = data.get('steps')
+            for i, step in enumerate(steps):
+                print(f"[Step[{i}]]: {step}")
