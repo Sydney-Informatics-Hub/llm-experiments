@@ -11,12 +11,12 @@ from langchain.llms import OpenAI
 from typing import Optional
 
 __all__ = ['create_cot_prompt_example', 'create_cot_prompt_template',
-           'COT_EXAMPLE', 'COT_TEMPLATE',
+           'CoTExample', 'CoTTemplate',
            'CoTDataLeak', 'CoTDataLeakException']
 
 # type aliases
-COT_EXAMPLE = dict[str, str]
-COT_TEMPLATE = FewShotPromptTemplate
+CoTExample = dict[str, str]
+CoTTemplate = FewShotPromptTemplate
 
 # constants
 _QUERY = 'query'
@@ -28,7 +28,7 @@ def create_cot_prompt_example(
         query: str,
         steps: str,
         answer: str,
-) -> COT_EXAMPLE:
+) -> CoTExample:
     return {
         _QUERY: query,
         _STEPS: steps,
@@ -44,8 +44,8 @@ _cot_example_template = PromptTemplate(
 
 def create_cot_prompt_template(
         instructions: Optional[str],
-        cot_examples: list[COT_EXAMPLE],
-) -> COT_TEMPLATE:
+        cot_examples: list[CoTExample],
+) -> CoTTemplate:
     """ Create a prompt template following Chain of Thoughts. """
     if not isinstance(instructions, str) and instructions is not None:
         raise TypeError("instructions must be a string.")
@@ -81,8 +81,8 @@ class CoTDataLeak(object):
 
     CHECK_TYPES = ('exact',)
 
-    def __init__(self, template: COT_TEMPLATE, check_type: str = 'exact', raise_err: bool = True):
-        if not isinstance(template, COT_TEMPLATE):
+    def __init__(self, template: CoTTemplate, check_type: str = 'exact', raise_err: bool = True):
+        if not isinstance(template, CoTTemplate):
             raise TypeError("template must be a FewShotPromptTemplate/COT_TEMPLATE.")
         if not check_type in self.CHECK_TYPES:
             raise ValueError(f"check_type must be one of {', '.join(self.CHECK_TYPES)}")

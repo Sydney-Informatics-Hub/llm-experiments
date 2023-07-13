@@ -71,6 +71,8 @@ class TikDollar(object):
         """
         decorator = tikdollar(cost_threshold=cost_threshold, raise_err=raise_err, verbose=verbose)
         if hasattr(llm_fn, '__wrapped__'): llm_fn = llm_fn.__wrapped__  # handle rebind on decorator fn
+        # todo: llm_fn.__self__     , then remove the arg: clz all together
+        #  if llm_fn.__self__ doesn't exist, it probably means its a static function, in which case, raise Error? or use __class__
         setattr(clz, llm_fn.__name__, decorator(llm_fn))
         return getattr(clz, llm_fn.__name__).tikdollar
 

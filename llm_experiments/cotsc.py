@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from llm_experiments.utils import prompt_check
 from llm_experiments.cot import (create_cot_prompt_template,
                                  create_cot_prompt_example,
-                                 COT_TEMPLATE, CoTDataLeak)
+                                 CoTTemplate, CoTDataLeak)
 
 __all__ = ['SamplingScheme', 'CoTSC']
 
@@ -105,14 +105,14 @@ class CoTSC(object):
 
     def __init__(self,
                  model: str,
-                 prompt: COT_TEMPLATE,
+                 prompt: CoTTemplate,
                  classes: list[str],
                  sampling_scheme: SamplingScheme,
                  n_completions: int,
                  ):
         if not isinstance(model, str): raise TypeError(f"model must be a string. {', '.join(CoTSC.MODELS)}")
         if model not in CoTSC.MODELS: raise ValueError(f"model must be one of {', '.join(CoTSC.MODELS)}")
-        if not isinstance(prompt, COT_TEMPLATE): raise TypeError("prompt must be a FewShotPrompt/COT_TEMPLATE for CoT.")
+        if not isinstance(prompt, CoTTemplate): raise TypeError("prompt must be a FewShotPrompt/COT_TEMPLATE for CoT.")
         if not prompt.suffix: raise ValueError("prompt must have a suffix for CoT.")
         if not isinstance(classes, list): raise TypeError("classes must be a list of strings.")
         if len(classes) <= 0: raise ValueError("There must be at least one class.")
