@@ -5,6 +5,7 @@ This script uses examples from the Chain of Thoughts paper.
 https://arxiv.org/abs/2201.11903
 """
 import sys
+import random
 
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain.llms import OpenAI
@@ -45,6 +46,8 @@ _cot_example_template = PromptTemplate(
 def create_cot_prompt_template(
         instructions: Optional[str],
         cot_examples: list[COT_EXAMPLE],
+        shuffle: bool,
+        seed: int = 42,
 ) -> COT_TEMPLATE:
     """ Create a prompt template following Chain of Thoughts. """
     if not isinstance(instructions, str) and instructions is not None:
@@ -56,6 +59,10 @@ def create_cot_prompt_template(
 
     if not isinstance(cot_examples, list): raise TypeError("cot_examples must be a list.")
     if len(cot_examples) <= 0: raise ValueError("There must be at least 1 cot_example.")
+
+    if shuffle:
+        random.seed(seed)
+        random.shuffle(cot_examples)
 
     for ex in cot_examples:
         if not {_QUERY, _STEPS, _ANS} == set(ex.keys()):
