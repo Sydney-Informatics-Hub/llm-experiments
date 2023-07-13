@@ -236,7 +236,9 @@ class CoTSC(object):
                   model: str,
                   prompt_toml: Union[str, Path],
                   sampling_scheme: SamplingScheme,
-                  n_completions: int):
+                  n_completions: int,
+                  shuffle_examples: bool = True,
+                  shuffle_seed: int = 42):
         """ Create the appropriate prompt template based on TOML file setting. """
         prompt_toml = Path(prompt_toml)
         if not prompt_toml.suffix == '.toml': raise ValueError("prompt_toml is not a toml file.")
@@ -274,6 +276,8 @@ Please classify each 'query' as one of the {len(classes)} classes.\n\n""" + '\n'
         template = create_cot_prompt_template(
             instructions=instruction,
             cot_examples=cot_examples,
+            shuffle=shuffle_examples,
+            seed=shuffle_seed,
         )
         return cls(model=model,
                    prompt=template,
