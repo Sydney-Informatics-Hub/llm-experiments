@@ -101,7 +101,7 @@ class ClassificationOutput(BaseModel):
 
 class CoTSC(object):
     MODELS = ('text-davinci-003', 'text-davinci-002', 'text-curie-001', 'text-babbage-001', 'text-ada-001',
-              'gpt-3.5-turbo')
+              'gpt-3.5-turbo', 'gpt-4')
 
     def __init__(self,
                  model: str,
@@ -128,7 +128,7 @@ class CoTSC(object):
         self.prompt = prompt
         self.parser = parser
 
-        if model in ('gpt-3.5-turbo'):
+        if model in ('gpt-3.5-turbo', 'gpt-4'):
             model_kwargs = sampling_scheme.openai()
             del model_kwargs['temperature']
             self.llm = ChatOpenAI(
