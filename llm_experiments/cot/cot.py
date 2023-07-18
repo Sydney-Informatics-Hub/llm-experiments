@@ -6,6 +6,7 @@ https://arxiv.org/abs/2201.11903
 """
 import sys
 import random
+from llm_experiments.utils.tikdollar import count_input_tokens
 
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain.llms import OpenAI
@@ -76,6 +77,50 @@ def create_cot_prompt_template(
         input_variables=[_QUERY],
         example_separator='\n',
     )
+
+
+class CoT(object):
+    def __init__(self, instructions: str, examples: list[COT_EXAMPLE]):
+        self._prompt = create_cot_prompt_template(
+            instructions=instructions,
+            cot_examples=examples,
+            shuffle=False,
+        )
+        self.instructions = instructions
+        self.examples = examples
+        self._all_examples = examples
+
+    def shuffle_examples(self, seed: int = 42):
+        """ Shuffles the CoT examples."""
+        self._prompt = create_cot_prompt_template(
+            instructions=self.instructions,
+            cot_examples=self.examples,
+            shuffle=True,
+            seed=seed,
+        )
+
+    def count_tokens(self, model: str, **kwargs) -> int:
+        """ **kwargs are passed to the .format() call."""
+        return count_input_tokens(model=model, prompt=self._prompt.format(**kwargs))
+
+    @property
+    def prompt(self) -> COT_TEMPLATE:
+        return self._prompt
+
+    def sample(self, method: str, n: int):
+        if not isinstance(n, int): raise TypeError("n must be an integer.")
+        if not isinstance(method, int): raise TypeError("method must be a str.")
+        if method == 'random':
+            from samplers import random_sample
+            self.examples = random_sample(self._all_examples, n=n)
+        else:
+            raise NotImplementedError(f"{method} is not implemented.")
+
+    # todo: answer distribution -> Counter. (plot=True)
+    # todo: sampling (random, gibbs)  inp: examples, output: examples.
+    # todo: truncation. (number of input tokens)
+    # todo: run(query)
+    # todo: from_toml
 
 
 class CoTDataLeakException(Exception):

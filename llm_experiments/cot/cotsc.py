@@ -25,9 +25,9 @@ from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
 from llm_experiments.utils import prompt_check
-from llm_experiments.cot import (create_cot_prompt_template,
-                                 create_cot_prompt_example,
-                                 COT_TEMPLATE, CoTDataLeak)
+from llm_experiments.cot.cot import (create_cot_prompt_template,
+                                     create_cot_prompt_example,
+                                     COT_TEMPLATE, CoTDataLeak, CoT)
 
 __all__ = ['SamplingScheme', 'CoTSC']
 
