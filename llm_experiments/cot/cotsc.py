@@ -240,50 +240,13 @@ class CoTSC(object):
                   shuffle_examples: bool = True,
                   shuffle_seed: int = 42):
         """ Create the appropriate prompt template based on TOML file setting. """
-        prompt_toml = Path(prompt_toml)
-        if not prompt_toml.suffix == '.toml': raise ValueError("prompt_toml is not a toml file.")
-        import toml
-        data = toml.load(prompt_toml)
-
-        if "PREFIX" in data.keys():
-            prefix = data.pop("PREFIX")
-            prefix_instructions = prefix.get('instruction', '')
-        else:
-            prefix_instructions = ''
-
-        classes = list(data.keys())
-
-        instructions = []
-        cot_examples = []
-        for clz in classes:
-            for example in data.get(clz).get('examples', list()):
-                cot_ex = create_cot_prompt_example(
-                    query=example.get('query'),
-                    steps=example.get('steps'),
-                    answer=clz
-                )
-                cot_examples.append(cot_ex)
-
-            instruction = data.get(clz).get('instruction')
-            instruction = f"<class>\n{clz}: {instruction}</class>"
-            instructions.append(instruction)
-
-        instruction = prefix_instructions + "\n\n" f"""
-The following are {len(classes)} classes with a description of each. 
-These are XML delimited with <class> tags in the format: <class> Class: Description </class>.
-Please classify each 'query' as one of the {len(classes)} classes.\n\n""" + '\n'.join(instructions) + "\n\n"
-
-        template = create_cot_prompt_template(
-            instructions=instruction,
-            cot_examples=cot_examples,
-            shuffle=shuffle_examples,
-            seed=shuffle_seed,
-        )
-        return cls(model=model,
-                   prompt=template,
-                   classes=classes,
-                   sampling_scheme=sampling_scheme,
-                   n_completions=n_completions)
+        cot = CoT.from_toml(prompt_toml)
+        if shuffle_examples:
+            cot.shuffle_examples(seed=shuffle_seed)
+        return cls.from_cot(model=model,
+                            cot=cot,
+                            sampling_scheme=sampling_scheme,
+                            n_completions=n_completions)
 
     @classmethod
     def from_cot(cls,
