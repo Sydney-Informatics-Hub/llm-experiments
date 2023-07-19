@@ -97,10 +97,10 @@ class CoT(object):
         return self._prompt
 
     @property
-    def classes(self):
+    def classes(self) -> list[str]:
         return sorted(list((sample.get(_ANS) for sample in self.samples)))
 
-    def class_dist(self):
+    def class_dist(self) -> Counter:
         return Counter(list((sample.get(_ANS) for sample in self.samples)))
 
     def shuffle_examples(self, seed: int = 42):
