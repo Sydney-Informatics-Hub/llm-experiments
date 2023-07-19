@@ -90,7 +90,7 @@ class CoT(object):
         )
         self.instructions = instructions
         self.examples = examples
-        self._all_examples = examples
+        self.samples = examples
 
     @property
     def prompt(self) -> COT_TEMPLATE:
@@ -98,13 +98,13 @@ class CoT(object):
 
     @property
     def classes(self):
-        return sorted(list((example.get(_ANS) for example in self.examples)))
+        return sorted(list((example.get(_ANS) for example in self.samples)))
 
     def shuffle_examples(self, seed: int = 42):
         """ Shuffles the CoT examples."""
         self._prompt = create_cot_prompt_template(
             instructions=self.instructions,
-            cot_examples=self.examples,
+            cot_examples=self.samples,
             shuffle=True,
             seed=seed,
         )
@@ -118,13 +118,13 @@ class CoT(object):
         if not isinstance(method, str): raise TypeError("method must be a str.")
         if method == 'random':
             from llm_experiments.cot.samplers import random_sample
-            self.examples = random_sample(self._all_examples, n=n)
+            self.samples = random_sample(self.examples, n=n)
         else:
             raise NotImplementedError(f"{method} is not implemented.")
 
         self._prompt = create_cot_prompt_template(
             instructions=self.instructions,
-            cot_examples=self.examples,
+            cot_examples=self.samples,
             shuffle=False,
         )
 
@@ -166,7 +166,7 @@ class CoT(object):
         return cls(instructions=instruction, examples=cot_examples)
 
     def __str__(self) -> str:
-        return f"<CoT classes {len(self.classes)} samples {len(self.examples)} examples {len(self._all_examples)}>"
+        return f"<CoT classes {len(self.classes)} samples {len(self.samples)} examples {len(self.examples)}>"
 
 
 class CoTDataLeakException(Exception):
