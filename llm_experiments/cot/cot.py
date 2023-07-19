@@ -7,12 +7,12 @@ https://arxiv.org/abs/2201.11903
 import sys
 import random
 from pathlib import Path
-
-from llm_experiments.utils.tikdollar import count_input_tokens
-
+from typing import Optional
+from collections import Counter
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain.llms import OpenAI
-from typing import Optional
+
+from llm_experiments.utils.tikdollar import count_input_tokens
 
 __all__ = ['create_cot_prompt_example', 'create_cot_prompt_template',
            'COT_EXAMPLE', 'COT_TEMPLATE',
@@ -98,7 +98,10 @@ class CoT(object):
 
     @property
     def classes(self):
-        return sorted(list((example.get(_ANS) for example in self.samples)))
+        return sorted(list((sample.get(_ANS) for sample in self.samples)))
+
+    def class_dist(self):
+        return Counter(list((sample.get(_ANS) for sample in self.samples)))
 
     def shuffle_examples(self, seed: int = 42):
         """ Shuffles the CoT examples."""
@@ -237,6 +240,7 @@ class TestCoT(TestCase):
         cot = CoT.from_toml(path)
         print(cot)
         print(cot.prompt.format(query='<query>'))
+        print(cot.class_dist())
 
 
 ### Example used in the Chain of Thoughts Paper ###
