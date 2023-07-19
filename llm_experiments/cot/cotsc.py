@@ -285,6 +285,29 @@ Please classify each 'query' as one of the {len(classes)} classes.\n\n""" + '\n'
                    sampling_scheme=sampling_scheme,
                    n_completions=n_completions)
 
+    @classmethod
+    def from_cot(cls,
+                 model: str,
+                 cot: CoT,
+                 sampling_scheme: SamplingScheme,
+                 n_completions: int):
+        return cls(model=model,
+                   prompt=cot.prompt,
+                   classes=cot.classes,
+                   sampling_scheme=sampling_scheme,
+                   n_completions=n_completions)
+
+
+from unittest import TestCase
+
+
+class TestCoTSC(TestCase):
+    def test_cotsc_from_cot(self):
+        cot = CoT.from_toml('./notebooks/cotsc/classification.toml')
+        cot.sample(method='random', n=1)
+        cotsc = CoTSC.from_cot(model='gpt-3.5-turbo', cot=cot, sampling_scheme=TEST, n_completions=1)
+        print(cotsc.dryrun(query='<query>'))
+
 
 if __name__ == '__main__':
     from pprint import pprint
