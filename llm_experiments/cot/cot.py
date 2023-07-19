@@ -165,6 +165,9 @@ class CoT(object):
 
         return cls(instructions=instruction, examples=cot_examples)
 
+    def __str__(self) -> str:
+        return f"<CoT classes {len(self.classes)} samples {len(self.examples)} examples {len(self._all_examples)}>"
+
 
 class CoTDataLeakException(Exception):
     def __init__(self, query: str):
@@ -232,7 +235,7 @@ class TestCoT(TestCase):
     def test_cot_from_toml(self):
         path = "./notebooks/cotsc/classification.toml"
         cot = CoT.from_toml(path)
-        print()
+        print(cot)
         print(cot.prompt.format(query='<query>'))
 
 
