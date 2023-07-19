@@ -6,6 +6,8 @@ https://arxiv.org/abs/2201.11903
 """
 import sys
 import random
+from pathlib import Path
+
 from llm_experiments.utils.tikdollar import count_input_tokens
 
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
@@ -14,7 +16,7 @@ from typing import Optional
 
 __all__ = ['create_cot_prompt_example', 'create_cot_prompt_template',
            'COT_EXAMPLE', 'COT_TEMPLATE',
-           'CoTDataLeak', 'CoTDataLeakException']
+           'CoTDataLeak', 'CoTDataLeakException', 'CoT']
 
 # type aliases
 COT_EXAMPLE = dict[str, str]
@@ -90,6 +92,14 @@ class CoT(object):
         self.examples = examples
         self._all_examples = examples
 
+    @property
+    def prompt(self) -> COT_TEMPLATE:
+        return self._prompt
+
+    @property
+    def classes(self):
+        return sorted(list((example.get(_ANS) for example in self.examples)))
+
     def shuffle_examples(self, seed: int = 42):
         """ Shuffles the CoT examples."""
         self._prompt = create_cot_prompt_template(
@@ -103,24 +113,57 @@ class CoT(object):
         """ **kwargs are passed to the .format() call."""
         return count_input_tokens(model=model, prompt=self._prompt.format(**kwargs))
 
-    @property
-    def prompt(self) -> COT_TEMPLATE:
-        return self._prompt
-
     def sample(self, method: str, n: int):
         if not isinstance(n, int): raise TypeError("n must be an integer.")
-        if not isinstance(method, int): raise TypeError("method must be a str.")
+        if not isinstance(method, str): raise TypeError("method must be a str.")
         if method == 'random':
-            from samplers import random_sample
+            from llm_experiments.cot.samplers import random_sample
             self.examples = random_sample(self._all_examples, n=n)
         else:
             raise NotImplementedError(f"{method} is not implemented.")
 
-    # todo: answer distribution -> Counter. (plot=True)
-    # todo: sampling (random, gibbs)  inp: examples, output: examples.
-    # todo: truncation. (number of input tokens)
-    # todo: run(query)
-    # todo: from_toml
+        self._prompt = create_cot_prompt_template(
+            instructions=self.instructions,
+            cot_examples=self.examples,
+            shuffle=False,
+        )
+
+    @classmethod
+    def from_toml(cls, path: str):
+        path = Path(path)
+        if not path.suffix == '.toml': raise ValueError("path is not a toml file.")
+        import toml
+        data = toml.load(path)
+
+        if "PREFIX" in data.keys():
+            prefix = data.pop("PREFIX")
+            prefix_instructions = prefix.get('instruction', '')
+        else:
+            prefix_instructions = ''
+
+        classes = list(data.keys())
+
+        instructions = []
+        cot_examples = []
+        for clz in classes:
+            for example in data.get(clz).get('examples', list()):
+                cot_ex = create_cot_prompt_example(
+                    query=example.get('query'),
+                    steps=example.get('steps'),
+                    answer=clz
+                )
+                cot_examples.append(cot_ex)
+
+            instruction = data.get(clz).get('instruction')
+            instruction = f"<class>\n{clz}: {instruction}</class>"
+            instructions.append(instruction)
+
+        instruction = prefix_instructions + "\n\n" f"""
+        The following are {len(classes)} classes with a description of each. 
+        These are XML delimited with <class> tags in the format: <class> Class: Description </class>.
+        Please classify each 'query' as one of the {len(classes)} classes.\n\n""" + '\n'.join(instructions) + "\n\n"
+
+        return cls(instructions=instruction, examples=cot_examples)
 
 
 class CoTDataLeakException(Exception):
@@ -185,6 +228,12 @@ class TestCoT(TestCase):
         template = create_cot_prompt_template("", cot_examples=[ex])
         dataleak = CoTDataLeak(template=template, raise_err=False)
         assert not dataleak.check('query placeholder')
+
+    def test_cot_from_toml(self):
+        path = "./notebooks/cotsc/classification.toml"
+        cot = CoT.from_toml(path)
+        print()
+        print(cot.prompt.format(query='<query>'))
 
 
 ### Example used in the Chain of Thoughts Paper ###
