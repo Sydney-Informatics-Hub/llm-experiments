@@ -98,7 +98,7 @@ class CoT(object):
 
     @property
     def classes(self) -> list[str]:
-        return sorted(list((sample.get(_ANS) for sample in self.samples)))
+        return sorted(list(set((sample.get(_ANS) for sample in self.samples))))
 
     def class_dist(self) -> Counter:
         return Counter(list((sample.get(_ANS) for sample in self.samples)))
