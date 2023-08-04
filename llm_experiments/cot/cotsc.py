@@ -200,21 +200,22 @@ class CoTSC(object):
             raise TypeError(f"LLM must be either a {BaseLLM.__name__} or {BaseChatModel.__name__}.")
 
     @staticmethod
-    def _majority_vote(parsed: list[ClassificationOutput]) -> VOTES:
+    def _majority_vote(parsed: list[tuple[ClassificationOutput, str]]) -> VOTES:
         """ Collate votes on classification based on LLM outputs. """
         votes = dict()
-        for p in parsed:
+        for p, completion in parsed:
             votes_ans = votes.get(p.answer, {'votes': 0, 'steps': set(), 'completions': list()})
             votes_ans['votes'] = votes_ans.get('votes') + 1
             votes_ans['steps'].add(p.steps)
+            votes_ans['completions'].append(completion)
             votes[p.answer] = votes_ans
         return votes
 
-    def fallback_parse(self, completion: Generation) -> ClassificationOutput:
+    def fallback_parse(self, completion: Generation) -> tuple[ClassificationOutput, str]:
         """ Parses the output using the parser first. Fallback to regex. Then N/A. """
         try:
             parsed: ClassificationOutput = self.parser.parse(completion.text)
-            return parsed
+            return parsed, completion.text
         except OutputParserException as ope:
             ans_ptn = re.compile("(" + "|".join(self.classes) + ")", flags=re.IGNORECASE)
             answers = ans_ptn.findall(completion.text)
@@ -222,9 +223,9 @@ class CoTSC(object):
             steps: str = ans_ptn.sub('', completion.text)
             steps = re.sub('answer[:]?', '', steps, flags=re.IGNORECASE)
             steps = steps.strip()
-            return ClassificationOutput(answer=ans, steps=steps)
+            return ClassificationOutput(answer=ans, steps=steps), completion.text
         except Exception as e:
-            return ClassificationOutput(answer='N/A', steps=completion.text)
+            return ClassificationOutput(answer='N/A', steps=completion.text), completion.text
 
     @classmethod
     def from_toml(cls,
