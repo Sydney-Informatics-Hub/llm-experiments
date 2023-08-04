@@ -96,7 +96,6 @@ PROMPT = Union[str, BaseMessage]
 class ClassificationOutput(BaseModel):
     answer: str = Field(description="the classification")
     steps: str = Field(description="the reasoning steps that resulted in the classification")
-    completion: Optional[str] = None
 
 
 class CoTSC(object):
