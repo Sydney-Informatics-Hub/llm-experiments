@@ -207,7 +207,6 @@ class CoTSC(object):
             votes_ans = votes.get(p.answer, {'votes': 0, 'steps': set(), 'completions': list()})
             votes_ans['votes'] = votes_ans.get('votes') + 1
             votes_ans['steps'].add(p.steps)
-            votes_ans.get('completions').append(p.completion)
             votes[p.answer] = votes_ans
         return votes
 
@@ -215,7 +214,6 @@ class CoTSC(object):
         """ Parses the output using the parser first. Fallback to regex. Then N/A. """
         try:
             parsed: ClassificationOutput = self.parser.parse(completion.text)
-            parsed.completion = completion.text
             return parsed
         except OutputParserException as ope:
             ans_ptn = re.compile("(" + "|".join(self.classes) + ")", flags=re.IGNORECASE)
@@ -224,11 +222,9 @@ class CoTSC(object):
             steps: str = ans_ptn.sub('', completion.text)
             steps = re.sub('answer[:]?', '', steps, flags=re.IGNORECASE)
             steps = steps.strip()
-            # todo: log
-            return ClassificationOutput(answer=ans, steps=steps, completion=completion.text)
+            return ClassificationOutput(answer=ans, steps=steps)
         except Exception as e:
-            # todo: log
-            return ClassificationOutput(answer='N/A', steps='N/A', completion=completion.text)
+            return ClassificationOutput(answer='N/A', steps=completion.text)
 
     @classmethod
     def from_toml(cls,
