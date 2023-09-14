@@ -123,11 +123,11 @@ class CoTSC(object):
         # output defs
         parser = PydanticOutputParser(pydantic_object=ClassificationOutput)  # note: hard coded output definition
         prompt.input_variables.append("format_instructions")
-        # prompt.suffix = "\n\n{format_instructions}\n\n" + prompt.suffix
+        prompt.suffix = "\n\n{format_instructions}\n\n" + prompt.suffix
         self.prompt = prompt
         self.parser = parser
 
-        if model in ('gpt-3.5-turbo', 'gpt-4'):
+        if model in ('gpt-3.5-turbo', 'gpt-3.5-turbo-16k', 'gpt-4'):
             model_kwargs = sampling_scheme.openai()
             del model_kwargs['temperature']
             self.llm = ChatOpenAI(
