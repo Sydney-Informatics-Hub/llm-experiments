@@ -99,8 +99,7 @@ class ClassificationOutput(BaseModel):
 
 
 class CoTSC(object):
-    MODELS = ('text-davinci-003', 'text-davinci-002', 'text-curie-001', 'text-babbage-001', 'text-ada-001',
-              'gpt-3.5-turbo', 'gpt-3.5-turbo-16k', 'gpt-4')
+    MODELS = ('gpt-3.5-turbo', 'gpt-3.5-turbo-16k', 'gpt-4')
 
     def __init__(self,
                  model: str,
@@ -145,6 +144,7 @@ class CoTSC(object):
                 self.prompt.format(**input_kwargs, )
             )
             self.prompt.prompt.partial_variables = {"format_instructions": self.parser.get_format_instructions()}
+        # note: this else statement is kept as legacy as only gpt-3.5 or above is supported. See MODELS above.
         else:
             self.llm = OpenAI(
                 model_name=model,
@@ -180,7 +180,7 @@ class CoTSC(object):
 
         return self._majority_vote([self.fallback_parse(c) for c in completions])
 
-    def dryrun(self, query: str) -> PROMPT:
+    def dryrun(self, query: str) -> tuple[PROMPT, int]:
         try:
             query = str(query)
         except Exception as e:
@@ -188,9 +188,9 @@ class CoTSC(object):
 
         content = self.prompt.format(query=str(query))
         if isinstance(self.prompt, BaseMessagePromptTemplate):
-            return content.content
-        else:
-            return content
+            content = content.content
+        from llm_experiments.utils.tikdollar import count_input_tokens
+        return content, count_input_tokens(content)
 
     @staticmethod
     def _tikdollar_run(llm, prompt) -> LLMResult:
