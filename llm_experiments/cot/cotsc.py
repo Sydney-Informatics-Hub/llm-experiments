@@ -190,7 +190,7 @@ class CoTSC(object):
         if isinstance(self.prompt, BaseMessagePromptTemplate):
             content = content.content
         from llm_experiments.utils.tikdollar import count_input_tokens
-        return content, count_input_tokens(content)
+        return content, count_input_tokens(model=self.llm.model_name, prompt=content)
 
     @staticmethod
     def _tikdollar_run(llm, prompt) -> LLMResult:
