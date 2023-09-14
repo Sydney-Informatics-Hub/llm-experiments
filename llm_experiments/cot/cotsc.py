@@ -122,7 +122,7 @@ class CoTSC(object):
 
         # output defs
         parser = PydanticOutputParser(pydantic_object=ClassificationOutput)  # note: hard coded output definition
-        # prompt.input_variables.append("format_instructions")
+        prompt.input_variables.append("format_instructions")
         # prompt.suffix = "\n\n{format_instructions}\n\n" + prompt.suffix
         self.prompt = prompt
         self.parser = parser
