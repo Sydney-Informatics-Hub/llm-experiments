@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Optional
 from collections import Counter
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
-from langchain.llms import OpenAI
 
 from llm_experiments.utils.tikdollar import count_input_tokens
 
@@ -165,7 +164,6 @@ class CoT(object):
         The following are {len(classes)} classes with a description of each. 
         These are XML delimited with <class> tags in the format: <class> Class: Description </class>.
         Please classify each 'query' as one of the {len(classes)} classes.\n\n""" + '\n'.join(instructions) + "\n\n"
-
         return cls(instructions=instruction, examples=cot_examples)
 
     def __str__(self) -> str:
@@ -219,28 +217,28 @@ class CoTDataLeak(object):
         return query in self._setup['exact']
 
 
-### Unit Tests ###
-from unittest import TestCase
-
-
-class TestCoT(TestCase):
-    def test_create_cot_example(self):
-        ex = create_cot_prompt_example('query placeholder', 'steps placeholder', 'answer placeholder')
-        target = {'query': 'query placeholder', 'steps': 'steps placeholder', 'answer': 'answer placeholder'}
-        assert ex == target, "COT example created is invalid."
-
-    def test_dataleak(self):
-        ex = create_cot_prompt_example('query placeholder', 'steps placeholder', 'answer placeholder')
-        template = create_cot_prompt_template("", cot_examples=[ex])
-        dataleak = CoTDataLeak(template=template, raise_err=False)
-        assert not dataleak.check('query placeholder')
-
-    def test_cot_from_toml(self):
-        path = "./notebooks/cotsc/classification.toml"
-        cot = CoT.from_toml(path)
-        print(cot)
-        print(cot.prompt.format(query='<query>'))
-        print(cot.class_dist())
+# ### Unit Tests ###
+# from unittest import TestCase
+#
+#
+# class TestCoT(TestCase):
+#     def test_create_cot_example(self):
+#         ex = create_cot_prompt_example('query placeholder', 'steps placeholder', 'answer placeholder')
+#         target = {'query': 'query placeholder', 'steps': 'steps placeholder', 'answer': 'answer placeholder'}
+#         assert ex == target, "COT example created is invalid."
+#
+#     def test_dataleak(self):
+#         ex = create_cot_prompt_example('query placeholder', 'steps placeholder', 'answer placeholder')
+#         template = create_cot_prompt_template("", cot_examples=[ex])
+#         dataleak = CoTDataLeak(template=template, raise_err=False)
+#         assert not dataleak.check('query placeholder')
+#
+#     def test_cot_from_toml(self):
+#         path = "./notebooks/cotsc/classification.toml"
+#         cot = CoT.from_toml(path)
+#         print(cot)
+#         print(cot.prompt.format(query='<query>'))
+#         print(cot.class_dist())
 
 
 ### Example used in the Chain of Thoughts Paper ###
@@ -301,7 +299,22 @@ cot_template = FewShotPromptTemplate(
 if __name__ == '__main__':
     # uses /v1/completions endpoint
     # https://platform.openai.com/docs/models/model-endpoint-compatibility
+    import sys
+    from argparse import ArgumentParser, Namespace
 
+    parser = ArgumentParser()
+    file = parser.add_mutually_exclusive_group(required=True)
+    file.add_argument("--toml", help="Path to your CoT toml file.")
+    args: Namespace = parser.parse_args()
+    print(args)
+
+    if args.toml:
+        cot = CoT.from_toml(args.toml)
+    else:
+        raise NotImplementedError(f"Only toml files are supported at the moment. Use --toml.")
+
+
+"""
     print("This runs the examples in the CoT paper...")
     model = OpenAI(model_name='text-davinci-003',
                    # model_name='text-davinci-002',
@@ -325,3 +338,4 @@ if __name__ == '__main__':
     print("## Standard Prompting ##")
     print(std_template.format(query=query))
     print(model(prompt=std_template.format(query=query)))
+"""
