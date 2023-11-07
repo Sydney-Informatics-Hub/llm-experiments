@@ -18,8 +18,7 @@ Please add your project to this list if you are using LLMs in your project.
 
 - GEF Causation with LLMs, see [https://github.com/Sydney-Informatics-Hub/GEF-Causation-LLMs/tree/main](https://github.com/Sydney-Informatics-Hub/GEF-Causation-LLMs/tree/main)
 
-- classifying sequencing relations between text clauses for Legitimation Code Theory, see [https://github.com/Sydney-Informatics-Hub/LCT_sequencing/tree/main](https://github.com/Sydney-Informatics-Hub/LCT_sequencing/tree/main)
+- AI Semantic Insights: LLM Toolkit for Analysing Educational Practices and Knowledge Building, see [https://github.com/Sydney-Informatics-Hub/LLM-LCT-sequencing](https://github.com/Sydney-Informatics-Hub/LLM-LCT-sequencing)
 
 - ChatGPT masterclass, see [https://github.com/Sydney-Informatics-Hub/ChatGPT-Masterclass](https://github.com/Sydney-Informatics-Hub/ChatGPT-Masterclass)
 
-- AI Semantic Insights: LLM Toolkit for Analysing Educational Practices and Knowledge Building, see [https://github.com/Sydney-Informatics-Hub/LLM-LCT-sequencing](https://github.com/Sydney-Informatics-Hub/LLM-LCT-sequencing)
