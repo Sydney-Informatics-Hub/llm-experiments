@@ -21,3 +21,5 @@ Please add your project to this list if you are using LLMs in your project.
 - classifying sequencing relations between text clauses for Legitimation Code Theory, see [https://github.com/Sydney-Informatics-Hub/LCT_sequencing/tree/main](https://github.com/Sydney-Informatics-Hub/LCT_sequencing/tree/main)
 
 - ChatGPT masterclass, see [https://github.com/Sydney-Informatics-Hub/ChatGPT-Masterclass](https://github.com/Sydney-Informatics-Hub/ChatGPT-Masterclass)
+
+- AI Semantic Insights: LLM Toolkit for Analysing Educational Practices and Knowledge Building, see [https://github.com/Sydney-Informatics-Hub/LLM-LCT-sequencing](https://github.com/Sydney-Informatics-Hub/LLM-LCT-sequencing)
