@@ -94,7 +94,7 @@ PROMPT = Union[str, BaseMessage]
 
 
 class ClassificationOutput(BaseModel):
-    steps: str = Field(description="the reasoning steps that resulted in the classification")
+    steps: str = Field(description="the reasoning steps for the classification.")
     answer: str = Field(description="the classification")
 
 
@@ -107,6 +107,7 @@ class CoTSC(object):
                  classes: list[str],
                  sampling_scheme: SamplingScheme,
                  n_completions: int,
+                 parser_pydantic_obj=ClassificationOutput,
                  ):
         if not isinstance(model, str): raise TypeError(f"model must be a string. {', '.join(CoTSC.MODELS)}")
         if model not in CoTSC.MODELS: raise ValueError(f"model must be one of {', '.join(CoTSC.MODELS)}")
@@ -120,7 +121,7 @@ class CoTSC(object):
         if n_completions > 10: print(f"Warning: {n_completions=}. This may incur significant costs.", file=sys.stderr)
 
         # output defs
-        parser = PydanticOutputParser(pydantic_object=ClassificationOutput)  # note: hard coded output definition
+        parser = PydanticOutputParser(pydantic_object=parser_pydantic_obj)  # note: hard coded output definition
 
         if "format_instructions" not in prompt.input_variables:
             prompt.input_variables.append("format_instructions")
@@ -260,16 +261,13 @@ class CoTSC(object):
                    n_completions=n_completions)
 
 
-from unittest import TestCase
-
-
-class TestCoTSC(TestCase):
-    def test_cotsc_from_cot(self):
-        cot = CoT.from_toml('./notebooks/cotsc/classification.toml')
-        cot.sample(method='random', n=1)
-        cotsc = CoTSC.from_cot(model='gpt-3.5-turbo', cot=cot, sampling_scheme=TEST, n_completions=1)
-        print(cotsc.dryrun(query='<query>'))
-
+# class TestCoTSC(TestCase):
+#     def test_cotsc_from_cot(self):
+#         cot = CoT.from_toml('./notebooks/cotsc/classification.toml')
+#         cot.sample(method='random', n=1)
+#         cotsc = CoTSC.from_cot(model='gpt-3.5-turbo', cot=cot, sampling_scheme=TEST, n_completions=1)
+#         print(cotsc.dryrun(query='<query>'))
+#
 
 if __name__ == '__main__':
     from pprint import pprint
