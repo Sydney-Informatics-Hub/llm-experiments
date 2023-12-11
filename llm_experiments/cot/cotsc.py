@@ -238,7 +238,8 @@ class CoTSC(object):
                   sampling_scheme: SamplingScheme,
                   n_completions: int,
                   shuffle_examples: bool = True,
-                  shuffle_seed: int = 42):
+                  shuffle_seed: int = 42,
+                  parser_pydantic_obj=ClassificationOutput):
         """ Create the appropriate prompt template based on TOML file setting. """
         cot = CoT.from_toml(prompt_toml)
         if shuffle_examples:
@@ -246,19 +247,22 @@ class CoTSC(object):
         return cls.from_cot(model=model,
                             cot=cot,
                             sampling_scheme=sampling_scheme,
-                            n_completions=n_completions)
+                            n_completions=n_completions,
+                            parser_pydantic_obj=parser_pydantic_obj)
 
     @classmethod
     def from_cot(cls,
                  model: str,
                  cot: CoT,
                  sampling_scheme: SamplingScheme,
-                 n_completions: int):
+                 n_completions: int,
+                 parser_pydantic_obj=ClassificationOutput):
         return cls(model=model,
                    prompt=cot.prompt,
                    classes=cot.classes,
                    sampling_scheme=sampling_scheme,
-                   n_completions=n_completions)
+                   n_completions=n_completions,
+                   parser_pydantic_obj=parser_pydantic_obj)
 
 
 # class TestCoTSC(TestCase):
