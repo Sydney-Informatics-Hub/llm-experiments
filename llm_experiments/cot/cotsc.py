@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union
 
+import toml
 from langchain.schema import Generation, OutputParserException
 from langchain.llms.base import BaseLLM
 from langchain.chat_models.base import BaseChatModel
@@ -93,9 +94,14 @@ VOTES = dict[CLAZZ, dict[str, Union[NUM_VOTES, STEPS]]]
 PROMPT = Union[str, BaseMessage]
 
 
-class ClassificationOutput(BaseModel):
+class StepsFirstClassificationOutput(BaseModel):
     steps: str = Field(description="the reasoning steps for the classification.")
     answer: str = Field(description="the classification")
+
+
+class ClassFirstClassificationOutput(BaseModel):
+    answer: str = Field(description="the classification")
+    steps: str = Field(description="the reasoning steps for the classification.")
 
 
 class CoTSC(object):
@@ -107,8 +113,7 @@ class CoTSC(object):
                  classes: list[str],
                  sampling_scheme: SamplingScheme,
                  n_completions: int,
-                 parser_pydantic_obj=ClassificationOutput,
-                 ):
+                 parser_pydantic_obj=StepsFirstClassificationOutput):
         if not isinstance(model, str): raise TypeError(f"model must be a string. {', '.join(CoTSC.MODELS)}")
         if model not in CoTSC.MODELS: raise ValueError(f"model must be one of {', '.join(CoTSC.MODELS)}")
         if not isinstance(prompt, COT_TEMPLATE): raise TypeError("prompt must be a FewShotPrompt/COT_TEMPLATE for CoT.")
@@ -122,6 +127,7 @@ class CoTSC(object):
 
         # output defs
         parser = PydanticOutputParser(pydantic_object=parser_pydantic_obj)  # note: hard coded output definition
+        self._parser_pydantic_obj = parser.pydantic_object
 
         if "format_instructions" not in prompt.input_variables:
             prompt.input_variables.append("format_instructions")
@@ -158,6 +164,14 @@ class CoTSC(object):
         self.n_completions = n_completions
 
         self._dataleak = CoTDataLeak(prompt, raise_err=True)
+
+    @property
+    def is_steps_first(self) -> bool:
+        return self._parser_pydantic_obj == StepsFirstClassificationOutput
+
+    @property
+    def cot(self) -> CoT:
+        return self._cot
 
     def run(self, query: str) -> VOTES:
         # use the few shot prompt as input to the llm.
@@ -204,7 +218,7 @@ class CoTSC(object):
             raise TypeError(f"LLM must be either a {BaseLLM.__name__} or {BaseChatModel.__name__}.")
 
     @staticmethod
-    def _majority_vote(parsed: list[tuple[ClassificationOutput, str]]) -> VOTES:
+    def _majority_vote(parsed: list[tuple[BaseModel, str]]) -> VOTES:
         """ Collate votes on classification based on LLM outputs. """
         votes = dict()
         for p, completion in parsed:
@@ -215,10 +229,10 @@ class CoTSC(object):
             votes[p.answer] = votes_ans
         return votes
 
-    def fallback_parse(self, completion: Generation) -> tuple[ClassificationOutput, str]:
+    def fallback_parse(self, completion: Generation) -> tuple[BaseModel, str]:
         """ Parses the output using the parser first. Fallback to regex. Then N/A. """
         try:
-            parsed: ClassificationOutput = self.parser.parse(completion.text)
+            parsed: BaseModel = self.parser.parse(completion.text)
             return parsed, completion.text
         except OutputParserException as ope:
             ans_ptn = re.compile("(" + "|".join(self.classes) + ")", flags=re.IGNORECASE)
@@ -227,9 +241,9 @@ class CoTSC(object):
             steps: str = ans_ptn.sub('', completion.text)
             steps = re.sub('answer[:]?', '', steps, flags=re.IGNORECASE)
             steps = steps.strip()
-            return ClassificationOutput(answer=ans, steps=steps), completion.text
+            return self._parser_pydantic_obj(answer=ans, steps=steps), completion.text
         except Exception as e:
-            return ClassificationOutput(answer='N/A', steps=completion.text), completion.text
+            return self._parser_pydantic_obj(answer='N/A', steps=completion.text), completion.text
 
     @classmethod
     def from_toml(cls,
@@ -238,10 +252,17 @@ class CoTSC(object):
                   sampling_scheme: SamplingScheme,
                   n_completions: int,
                   shuffle_examples: bool = True,
-                  shuffle_seed: int = 42,
-                  parser_pydantic_obj=ClassificationOutput):
+                  shuffle_seed: int = 42):
         """ Create the appropriate prompt template based on TOML file setting. """
         cot = CoT.from_toml(prompt_toml)
+        prompt_toml = Path(prompt_toml)
+        data = toml.load(prompt_toml)
+        parser_pydantic_obj = StepsFirstClassificationOutput
+        if "OutputFormat" in data.keys():
+            outformat = data.pop("OutputFormat")
+            steps_first = outformat.get("steps_before_classification", True)
+            if not steps_first:
+                parser_pydantic_obj = ClassFirstClassificationOutput
         if shuffle_examples:
             cot.shuffle_examples(seed=shuffle_seed)
         return cls.from_cot(model=model,
@@ -256,7 +277,15 @@ class CoTSC(object):
                  cot: CoT,
                  sampling_scheme: SamplingScheme,
                  n_completions: int,
-                 parser_pydantic_obj=ClassificationOutput):
+                 prompt_toml: str | None = None):
+        prompt_toml = Path(prompt_toml)
+        data = toml.load(prompt_toml)
+        parser_pydantic_obj = StepsFirstClassificationOutput
+        if "OutputFormat" in data.keys():
+            outformat = data.pop("OutputFormat")
+            steps_first = outformat.get("steps_before_classification", True)
+            if not steps_first:
+                parser_pydantic_obj = ClassFirstClassificationOutput
         return cls(model=model,
                    prompt=cot.prompt,
                    classes=cot.classes,
