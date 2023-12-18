@@ -143,7 +143,8 @@ class CoT(object):
         else:
             prefix_instructions = ''
 
-        classes = list(filter(lambda k: k in ("OutputFormat", ), list(data.keys())))
+        classes = list(data.keys())
+        classes.remove("OutputFormat")
 
         instructions = []
         cot_examples = []
