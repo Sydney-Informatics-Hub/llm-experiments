@@ -255,21 +255,13 @@ class CoTSC(object):
                   shuffle_seed: int = 42):
         """ Create the appropriate prompt template based on TOML file setting. """
         cot = CoT.from_toml(prompt_toml)
-        prompt_toml = Path(prompt_toml)
-        data = toml.load(prompt_toml)
-        parser_pydantic_obj = StepsFirstClassificationOutput
-        if "OutputFormat" in data.keys():
-            outformat = data.pop("OutputFormat")
-            steps_first = outformat.get("steps_before_classification", True)
-            if not steps_first:
-                parser_pydantic_obj = ClassFirstClassificationOutput
         if shuffle_examples:
             cot.shuffle_examples(seed=shuffle_seed)
         return cls.from_cot(model=model,
                             cot=cot,
                             sampling_scheme=sampling_scheme,
                             n_completions=n_completions,
-                            parser_pydantic_obj=parser_pydantic_obj)
+                            prompt_toml=prompt_toml)
 
     @classmethod
     def from_cot(cls,
