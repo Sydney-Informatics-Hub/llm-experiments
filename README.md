@@ -22,3 +22,4 @@ Please add your project to this list if you are using LLMs in your project.
 
 - ChatGPT masterclass, see [https://github.com/Sydney-Informatics-Hub/ChatGPT-Masterclass](https://github.com/Sydney-Informatics-Hub/ChatGPT-Masterclass)
 
+- LLM finetuning seminar, see [https://github.com/Sydney-Informatics-Hub/LLM-finetuning-seminar](https://github.com/Sydney-Informatics-Hub/LLM-finetuning-seminar)
